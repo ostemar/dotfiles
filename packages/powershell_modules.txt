@@ -1,0 +1,4 @@
+posh-git
+SqlServer
+Get-ChildItemColor
+Terminal-Icons
