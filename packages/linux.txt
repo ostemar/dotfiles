@@ -1,0 +1,49 @@
+# -----------------------------
+# A P T  (CLI/system tooling)
+# -----------------------------
+apt build-essential
+apt curl
+apt git
+apt neovim
+apt ripgrep
+apt fzf
+apt fd-find
+# apt stow
+apt unzip
+apt zsh
+apt python3-pip
+# apt tmux
+apt tree
+apt bat
+apt jq
+apt yq
+
+# If you want flatpak/snap management tools too (native Ubuntu only):
+# apt flatpak
+# apt snapd
+
+# -----------------------------
+# S N A P  (desktop apps)
+# (skipped on WSL automatically)
+# Some need --classic confinement.
+# -----------------------------
+snap code --classic
+# snap slack
+# snap postman
+# snap obsidian
+# snap spotify
+# snap docker   # alternative to apt install docker.io
+# snap chromium
+
+# -----------------------------
+# F L A T  (Flathub apps)
+# (skipped on WSL automatically)
+# Use 'flat <app.id>' (Flathub ID).
+# -----------------------------
+# flat com.brave.Browser
+# flat com.visualstudio.code
+# flat org.telegram.desktop
+# flat md.obsidian.Obsidian
+# flat com.getpostman.Postman
+# flat com.spotify.Client
+# flat org.chromium.Chromium
