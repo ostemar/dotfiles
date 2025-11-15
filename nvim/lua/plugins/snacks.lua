@@ -19,6 +19,19 @@ return {
 ]],
         },
       },
+      picker = {
+        sources = {
+          explorer = {
+            auto_open = false,
+            layout = {
+              preset = "default",
+            },
+            jump = {
+              close = true,
+            },
+          },
+        },
+      },
     },
   },
 }
