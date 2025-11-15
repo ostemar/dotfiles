@@ -17,9 +17,10 @@ Set-Alias sql Invoke-SqlCmd
 function cuserprofile { Set-Location ~ }
 Set-Alias ~ cuserprofile -Option AllScope
 
-# vi and vim because I am lazy
+# Short cheat codes because I am lazy
 Set-Alias vi nvim -Option AllScope
 Set-Alias vim nvim -Option AllScope
+Set-Alias lg lazygit -Option AllScope
 
 # Helper function to show Unicode character
 function U
