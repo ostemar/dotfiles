@@ -188,6 +188,14 @@ if [ -e "$BAT_SRC" ]; then
     fi
 fi
 
+# ---------- Link Delta (top-level 'delta/' layout) ----------
+DELTA_SRC="$REPO_ROOT/delta"
+DELTA_DST="$CONFIG_DIR/delta"
+if [ -e "$DELTA_SRC" ]; then
+    info "Linking Delta config (top-level):"
+    link_path "$DELTA_SRC" "$DELTA_DST"
+fi
+
 # ---------- Link any repo/config/* → ~/.config/<name> ----------
 if [ -d "$CONFIG_SRC" ]; then
     info "Linking repo/config/* into $CONFIG_DIR"

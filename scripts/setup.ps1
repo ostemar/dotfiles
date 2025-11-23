@@ -33,11 +33,14 @@ if (-not $RepoRoot -or $RepoRoot.Trim() -eq "") {
 # Key repo paths
 $NvimSource      = Join-Path $RepoRoot "nvim"
 $BatSource       = Join-Path $RepoRoot "bat"
+$DeltaSource     = Join-Path $RepoRoot "delta"
 $PwshRepoDir     = Join-Path $RepoRoot "powershell"
 
 # Key user paths
 $NvimTarget      = Join-Path $env:LOCALAPPDATA "nvim"
 $BatTarget       = Join-Path $env:APPDATA "bat"
+$ConfigDir       = Join-Path $HOME ".config"
+$DeltaTarget     = Join-Path $ConfigDir "delta"
 $UserPwshDir     = Split-Path -Parent $PROFILE  # typically: $HOME\Documents\PowerShell
 $ProfileTarget   = $PROFILE                     # exact host-specific profile path
 
@@ -45,6 +48,7 @@ Write-Host "🔗 Dotfiles setup" -ForegroundColor Cyan
 Write-Host "  Repo root:  $RepoRoot"
 Write-Host "  Neovim:     $NvimSource  →  $NvimTarget"
 Write-Host "  Bat:        $BatSource  →  $BatTarget"
+Write-Host "  Delta:      $DeltaSource  →  $DeltaTarget"
 Write-Host "  PS folder:  $PwshRepoDir  →  $UserPwshDir (files only)"
 
 # ---------- Helpers ----------------------------------------------------------
@@ -119,6 +123,9 @@ if (-not (Test-Path -LiteralPath $PwshRepoDir)) {
 if (-not (Test-Path -LiteralPath $BatSource)) {
   Write-Warning "⚠️ Bat source not found: $BatSource (skipping bat setup)"
 }
+if (-not (Test-Path -LiteralPath $DeltaSource)) {
+  Write-Warning "⚠️ Delta source not found: $DeltaSource (skipping delta setup)"
+}
 
 # ---------- Link Neovim ------------------------------------------------------
 try {
@@ -147,6 +154,16 @@ if (Test-Path -LiteralPath $BatSource) {
     }
   } catch {
     Write-Warning "⚠️ Bat link failed: $($_.Exception.Message)"
+  }
+}
+
+# ---------- Link Delta -------------------------------------------------------
+if (Test-Path -LiteralPath $DeltaSource) {
+  try {
+    New-SafeSymlink -LinkPath $DeltaTarget -TargetPath $DeltaSource
+    Write-Host "✅ Linked Delta config" -ForegroundColor Green
+  } catch {
+    Write-Warning "⚠️ Delta link failed: $($_.Exception.Message)"
   }
 }
 
