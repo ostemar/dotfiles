@@ -17,6 +17,7 @@ apt tree
 apt bat
 apt jq
 apt yq
+apt git-delta
 
 # If you want flatpak/snap management tools too (native Ubuntu only):
 # apt flatpak
