@@ -1,0 +1,5 @@
+# LazyGit runtime data (global)
+state.yml
+*.log
+update/
+

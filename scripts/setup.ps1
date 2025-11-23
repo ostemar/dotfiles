@@ -34,6 +34,7 @@ if (-not $RepoRoot -or $RepoRoot.Trim() -eq "") {
 $NvimSource      = Join-Path $RepoRoot "nvim"
 $BatSource       = Join-Path $RepoRoot "bat"
 $DeltaSource     = Join-Path $RepoRoot "delta"
+$LazygitSource   = Join-Path $RepoRoot "lazygit"
 $PwshRepoDir     = Join-Path $RepoRoot "powershell"
 
 # Key user paths
@@ -41,6 +42,7 @@ $NvimTarget      = Join-Path $env:LOCALAPPDATA "nvim"
 $BatTarget       = Join-Path $env:APPDATA "bat"
 $ConfigDir       = Join-Path $HOME ".config"
 $DeltaTarget     = Join-Path $ConfigDir "delta"
+$LazygitTarget   = Join-Path $env:LOCALAPPDATA "lazygit"
 $UserPwshDir     = Split-Path -Parent $PROFILE  # typically: $HOME\Documents\PowerShell
 $ProfileTarget   = $PROFILE                     # exact host-specific profile path
 
@@ -49,6 +51,7 @@ Write-Host "  Repo root:  $RepoRoot"
 Write-Host "  Neovim:     $NvimSource  →  $NvimTarget"
 Write-Host "  Bat:        $BatSource  →  $BatTarget"
 Write-Host "  Delta:      $DeltaSource  →  $DeltaTarget"
+Write-Host "  Lazygit:    $LazygitSource  →  $LazygitTarget"
 Write-Host "  PS folder:  $PwshRepoDir  →  $UserPwshDir (files only)"
 
 # ---------- Helpers ----------------------------------------------------------
@@ -126,6 +129,9 @@ if (-not (Test-Path -LiteralPath $BatSource)) {
 if (-not (Test-Path -LiteralPath $DeltaSource)) {
   Write-Warning "⚠️ Delta source not found: $DeltaSource (skipping delta setup)"
 }
+if (-not (Test-Path -LiteralPath $LazygitSource)) {
+  Write-Warning "⚠️ Lazygit source not found: $LazygitSource (skipping lazygit setup)"
+}
 
 # ---------- Link Neovim ------------------------------------------------------
 try {
@@ -164,6 +170,16 @@ if (Test-Path -LiteralPath $DeltaSource) {
     Write-Host "✅ Linked Delta config" -ForegroundColor Green
   } catch {
     Write-Warning "⚠️ Delta link failed: $($_.Exception.Message)"
+  }
+}
+
+# ---------- Link Lazygit -----------------------------------------------------
+if (Test-Path -LiteralPath $LazygitSource) {
+  try {
+    New-SafeSymlink -LinkPath $LazygitTarget -TargetPath $LazygitSource
+    Write-Host "✅ Linked Lazygit config" -ForegroundColor Green
+  } catch {
+    Write-Warning "⚠️ Lazygit link failed: $($_.Exception.Message)"
   }
 }
 

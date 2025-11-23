@@ -151,6 +151,8 @@ NVIM_SRC="$REPO_ROOT/nvim" # current layout
 NVIM_DST="$CONFIG_DIR/nvim"
 BAT_SRC="$REPO_ROOT/bat"
 BAT_DST="$CONFIG_DIR/bat"
+LAZYGIT_SRC="$REPO_ROOT/lazygit"
+LAZYGIT_DST="$CONFIG_DIR/lazygit"
 CONFIG_SRC="$REPO_ROOT/config" # future layout: repo/config/<name> → ~/.config/<name>
 ZSH_SRC="$REPO_ROOT/zsh/.zshrc"
 ZSH_DST="$HOME/.zshrc"
@@ -194,6 +196,12 @@ DELTA_DST="$CONFIG_DIR/delta"
 if [ -e "$DELTA_SRC" ]; then
     info "Linking Delta config (top-level):"
     link_path "$DELTA_SRC" "$DELTA_DST"
+fi
+
+# ---------- Link Lazygit (top-level 'lazygit/' layout) ----------
+if [ -e "$LAZYGIT_SRC" ]; then
+    info "Linking Lazygit config (top-level):"
+    link_path "$LAZYGIT_SRC" "$LAZYGIT_DST"
 fi
 
 # ---------- Link any repo/config/* → ~/.config/<name> ----------
