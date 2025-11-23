@@ -1,0 +1,20 @@
+# bat configuration file
+# See: https://github.com/sharkdp/bat
+
+# Set the theme to Catppuccin Mocha
+--theme="Catppuccin Mocha"
+
+# Show line numbers, Git modifications and file header (but no grid)
+--style="numbers,changes,header"
+
+# Use italic text on the terminal (not supported on all terminals)
+--italic-text=always
+
+# Add mouse scrolling support in less (does not work with all terminals)
+--paging=auto
+
+# Use C++ syntax for .h header files
+--map-syntax "*.h:C++"
+
+# Use "gitignore" highlighting for ".ignore" files
+--map-syntax ".ignore:Git Ignore"

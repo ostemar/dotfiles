@@ -3,5 +3,5 @@
 - [ ] .gitconfig
   - [ ] git delta
     - [ ] themes (catppuccin!)
-- [ ] bat theme (catppuccin!)
+- [x] bat theme (catppuccin!)
 - [ ] opencode

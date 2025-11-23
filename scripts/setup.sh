@@ -4,6 +4,7 @@ set -euo pipefail
 # ---------------------------------------------
 # Linux dotfiles setup
 # - Links Neovim config and other ~/.config items
+# - Links bat config to ~/.config/bat
 # - Optionally links ~/.zshrc from repo/zsh/.zshrc
 # - Idempotent: backs up existing paths unless --force
 # - Supports --dry-run and --repo
@@ -148,6 +149,8 @@ fi
 CONFIG_DIR="$XDG_CONFIG_HOME_DEFAULT"
 NVIM_SRC="$REPO_ROOT/nvim" # current layout
 NVIM_DST="$CONFIG_DIR/nvim"
+BAT_SRC="$REPO_ROOT/bat"
+BAT_DST="$CONFIG_DIR/bat"
 CONFIG_SRC="$REPO_ROOT/config" # future layout: repo/config/<name> → ~/.config/<name>
 ZSH_SRC="$REPO_ROOT/zsh/.zshrc"
 ZSH_DST="$HOME/.zshrc"
@@ -165,6 +168,24 @@ log "---------------------------------------------"
 if [ -e "$NVIM_SRC" ]; then
     info "Linking Neovim config (top-level):"
     link_path "$NVIM_SRC" "$NVIM_DST"
+fi
+
+# ---------- Link Bat (top-level 'bat/' layout) ----------
+if [ -e "$BAT_SRC" ]; then
+    info "Linking Bat config (top-level):"
+    link_path "$BAT_SRC" "$BAT_DST"
+    
+    # Rebuild bat cache to register the new theme
+    if command -v bat >/dev/null 2>&1; then
+        if [ $DRY_RUN -eq 1 ]; then
+            info "Would run: bat cache --build"
+        else
+            info "🔄 Rebuilding bat cache..."
+            bat cache --build >/dev/null 2>&1 && ok "Bat cache rebuilt" || warn "Failed to rebuild bat cache"
+        fi
+    else
+        warn "bat not found in PATH. Install bat and run 'bat cache --build' to use the theme."
+    fi
 fi
 
 # ---------- Link any repo/config/* → ~/.config/<name> ----------

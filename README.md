@@ -9,6 +9,7 @@ keep my setup consistent across systems.
 ### 🖥️ Cross-Platform
 
 - **Neovim** - Full LazyVim configuration with custom plugins
+- **Bat** - Syntax highlighting for cat with Catppuccin Mocha theme
 - **Git** - Configuration and tooling
 - Modern CLI tools (ripgrep, fzf, fd, bat, etc.)
 
@@ -84,6 +85,10 @@ keep my setup consistent across systems.
 
 ```
 dotfiles/
+├── bat/                    # Bat (cat with syntax highlighting)
+│   ├── config             # Bat configuration with Catppuccin Mocha theme
+│   └── themes/
+│       └── Catppuccin Mocha.tmTheme
 ├── nvim/                    # Neovim configuration (LazyVim)
 │   ├── lua/
 │   │   ├── config/         # Core configuration
@@ -196,6 +201,13 @@ Based on [LazyVim](https://www.lazyvim.org/) with additional customizations:
 - 🎨 Tokyo Night theme
 - 🍿 Snacks.nvim for UI enhancements
 - 🔍 Full LSP support
+
+### Bat Configuration
+
+- 🎨 Catppuccin Mocha theme for beautiful syntax highlighting
+- 📊 Line numbers and Git modifications display
+- 🔍 Custom syntax mappings for common file types
+- 📄 Smart paging with mouse support
 
 ## 🤝 Using These Dotfiles
 

@@ -2,13 +2,15 @@
 .SYNOPSIS
   Create Windows symlinks for your dotfiles:
   - %LOCALAPPDATA%\nvim  →  <repo>\nvim
+  - %APPDATA%\bat  →  <repo>\bat
   - For each file in <repo>\powershell\ →  $HOME\Documents\PowerShell\
     * Special-case: Microsoft.PowerShell_profile.ps1 → $PROFILE
 
 .DESCRIPTION
   - Safe to re-run. Cleans existing targets when necessary.
-  - Links only files; never directories.
+  - Links directories for nvim and bat; files for PowerShell.
   - If symlink creation fails (no admin / Developer Mode), shows a helpful hint.
+  - Runs 'bat cache --build' after linking bat config (if bat is installed).
 
 .PARAMETER RepoRoot
   Optional path to the repo root. Defaults to the parent of this script folder.
@@ -30,16 +32,19 @@ if (-not $RepoRoot -or $RepoRoot.Trim() -eq "") {
 
 # Key repo paths
 $NvimSource      = Join-Path $RepoRoot "nvim"
+$BatSource       = Join-Path $RepoRoot "bat"
 $PwshRepoDir     = Join-Path $RepoRoot "powershell"
 
 # Key user paths
 $NvimTarget      = Join-Path $env:LOCALAPPDATA "nvim"
+$BatTarget       = Join-Path $env:APPDATA "bat"
 $UserPwshDir     = Split-Path -Parent $PROFILE  # typically: $HOME\Documents\PowerShell
 $ProfileTarget   = $PROFILE                     # exact host-specific profile path
 
 Write-Host "🔗 Dotfiles setup" -ForegroundColor Cyan
 Write-Host "  Repo root:  $RepoRoot"
 Write-Host "  Neovim:     $NvimSource  →  $NvimTarget"
+Write-Host "  Bat:        $BatSource  →  $BatTarget"
 Write-Host "  PS folder:  $PwshRepoDir  →  $UserPwshDir (files only)"
 
 # ---------- Helpers ----------------------------------------------------------
@@ -111,6 +116,9 @@ if (-not (Test-Path -LiteralPath $NvimSource)) {
 if (-not (Test-Path -LiteralPath $PwshRepoDir)) {
   throw "PowerShell repo folder not found: $PwshRepoDir"
 }
+if (-not (Test-Path -LiteralPath $BatSource)) {
+  Write-Warning "⚠️ Bat source not found: $BatSource (skipping bat setup)"
+}
 
 # ---------- Link Neovim ------------------------------------------------------
 try {
@@ -119,6 +127,27 @@ try {
 } catch {
   Write-Warning "⚠️ Neovim link failed: $($_.Exception.Message)"
   throw
+}
+
+# ---------- Link Bat ---------------------------------------------------------
+if (Test-Path -LiteralPath $BatSource) {
+  try {
+    New-SafeSymlink -LinkPath $BatTarget -TargetPath $BatSource
+    Write-Host "✅ Linked Bat config" -ForegroundColor Green
+    
+    # Rebuild bat cache to register the new theme
+    if (Get-Command bat -ErrorAction SilentlyContinue) {
+      if ($PSCmdlet.ShouldProcess("bat cache", "Rebuild cache")) {
+        Write-Host "🔄 Rebuilding bat cache..." -ForegroundColor Cyan
+        bat cache --build | Out-Null
+        Write-Host "✅ Bat cache rebuilt" -ForegroundColor Green
+      }
+    } else {
+      Write-Host "ℹ️  bat not found in PATH. Install bat and run 'bat cache --build' to use the theme." -ForegroundColor Yellow
+    }
+  } catch {
+    Write-Warning "⚠️ Bat link failed: $($_.Exception.Message)"
+  }
 }
 
 # ---------- Link PowerShell files (files only) ------------------------------
