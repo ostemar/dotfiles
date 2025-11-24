@@ -23,12 +23,12 @@ return {
         sources = {
           explorer = {
             auto_open = false,
-            layout = {
-              preset = "default",
-            },
-            jump = {
-              close = true,
-            },
+            -- layout = {
+            --   preset = "default",
+            -- },
+            -- jump = {
+            --   close = true,
+            -- },
           },
         },
       },
