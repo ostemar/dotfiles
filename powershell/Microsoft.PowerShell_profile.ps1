@@ -30,6 +30,11 @@ Set-Alias vim nvim -Option AllScope
 Set-Alias v nvim -Option AllScope
 Set-Alias lg lazygit -Option AllScope
 
+# Key bindings
+Set-PSReadlineKeyHandler -Chord Ctrl+d -Function DeleteCharOrExit
+Set-PSReadlineKeyHandler -Chord Ctrl+a -Function BeginningOfLine
+Set-PSReadlineKeyHandler -Chord Ctrl+e -Function EndOfLine
+
 # Helper function to show Unicode character
 function U
 {
