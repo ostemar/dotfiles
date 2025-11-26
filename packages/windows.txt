@@ -31,3 +31,5 @@ yq
 visualstudio2022professional
 tree-sitter
 delta
+eza
+ntop.portable
