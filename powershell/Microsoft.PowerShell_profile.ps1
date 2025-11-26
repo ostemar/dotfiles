@@ -27,6 +27,7 @@ Set-Alias ~ cuserprofile -Option AllScope
 # Short cheat codes because I am lazy
 Set-Alias vi nvim -Option AllScope
 Set-Alias vim nvim -Option AllScope
+Set-Alias v nvim -Option AllScope
 Set-Alias lg lazygit -Option AllScope
 
 # Helper function to show Unicode character
