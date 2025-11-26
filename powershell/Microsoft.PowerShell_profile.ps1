@@ -7,8 +7,15 @@ Import-Module Terminal-Icons
 $env:LC_ALL='C.UTF-8'
 
 # Colorize file listings
-Import-Module Get-ChildItemColor
-Set-Alias l Get-ChildItemColorFormatWide -Option AllScope
+# Import-Module Get-ChildItemColor
+# Set-Alias l Get-ChildItemColorFormatWide -Option AllScope
+if (Test-Path Alias:ls) {
+    Remove-Item Alias:ls -Force
+}
+function ls { eza --color=auto --icons=auto --group-directories-first @args }
+function la { eza --color=auto --icons=auto --group-directories-first --all --git @args }
+function ll { eza --color=auto --icons=auto --group-directories-first --all --git --long @args }
+function l { eza --color=auto --icons=auto --group-directories-first --all --git --long @args }
 
 # sql alias
 Set-Alias sql Invoke-SqlCmd
