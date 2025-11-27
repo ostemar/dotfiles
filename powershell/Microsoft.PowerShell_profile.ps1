@@ -90,6 +90,23 @@ function osr {
             return
         }
         
+        # Check if this is a "goto" command - handle it specially
+        if ($args.Count -ge 2 -and $args[1] -match '^(goto|g)$') {
+            # Set environment variable to signal goto mode
+            $env:OSR_GOTO_MODE = "1"
+            $targetPath = & pwsh -NoProfile -File $osrScript @args
+            $env:OSR_GOTO_MODE = $null
+            
+            # Change to the target directory in the current shell
+            if ($targetPath -and (Test-Path $targetPath)) {
+                Pop-Location
+                Set-Location $targetPath
+                Write-Host "Changed directory to: $targetPath" -ForegroundColor Green
+                return
+            }
+        }
+        
+        # Normal command execution
         & pwsh -NoProfile -File $osrScript @args
     }
     finally {
