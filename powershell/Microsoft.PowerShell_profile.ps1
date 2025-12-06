@@ -6,16 +6,23 @@ Import-Module Terminal-Icons
 # Help git with unicode characters
 $env:LC_ALL='C.UTF-8'
 
-# Colorize file listings
-# Import-Module Get-ChildItemColor
-# Set-Alias l Get-ChildItemColorFormatWide -Option AllScope
-if (Test-Path Alias:ls) {
-    Remove-Item Alias:ls -Force
-}
-function ls { eza --color=auto --icons=auto --group-directories-first @args }
-function la { eza --color=auto --icons=auto --group-directories-first --all --git @args }
-function ll { eza --color=auto --icons=auto --group-directories-first --all --git --long @args }
-function l { eza --color=auto --icons=auto --group-directories-first --all --git --long @args }
+# = Colorize file listings ==========================================================
+
+# --- Configure colorized Get-ChildItem -------------------------------------------
+import-module get-childitemcolor
+set-alias l get-childitemcolorformatwide -option allscope
+
+# --- Configure eza for file listings -----------------------------------------------
+# Temporarily disabled since globbing does not work well with eza in PowerShell
+# if (Test-Path Alias:ls) {
+#     Remove-Item Alias:ls -Force
+# }
+# function ls { eza --color=auto --icons=auto --group-directories-first @args }
+# function la { eza --color=auto --icons=auto --group-directories-first --all --git @args }
+# function ll { eza --color=auto --icons=auto --group-directories-first --all --git --long @args }
+# function l { eza --color=auto --icons=auto --group-directories-first --all --git --long @args }
+
+# = Aliases and Functions ==========================================================
 
 # sql alias
 Set-Alias sql Invoke-SqlCmd
