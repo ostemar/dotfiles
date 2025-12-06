@@ -8,16 +8,28 @@ apt neovim
 apt ripgrep
 apt fzf
 apt fd-find
-# apt stow
 apt unzip
 apt zsh
 apt python3-pip
-# apt tmux
 apt tree
 apt bat
 apt jq
 apt yq
 apt git-delta
+apt zoxide
+apt eza
+
+# -- Things to try out ------
+# apt stow
+# apt tmux
+# apt htop
+# apt btop
+# apt dust
+# apt nodejs npm
+# apt golang-go
+# apt docker.io
+# apt nmap
+# apt zip
 
 # If you want flatpak/snap management tools too (native Ubuntu only):
 # apt flatpak
