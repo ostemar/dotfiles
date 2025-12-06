@@ -176,7 +176,7 @@ fi
 if [ -e "$BAT_SRC" ]; then
     info "Linking Bat config (top-level):"
     link_path "$BAT_SRC" "$BAT_DST"
-    
+
     # Rebuild bat cache to register the new theme
     if command -v bat >/dev/null 2>&1; then
         if [ $DRY_RUN -eq 1 ]; then
