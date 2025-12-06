@@ -5,3 +5,4 @@
     - [x] themes (catppuccin!)
 - [x] bat theme (catppuccin!)
 - [ ] opencode
+- [ ] Add .p10k.zsh (on my linux desktop now)
