@@ -93,6 +93,7 @@ alias la='exa --all --icons'
 # alias la='ls -A'
 alias l='ls -CF'
 alias bat='batcat'
+alias lg='lazygit'
 
 # History
 HISTSIZE=5000
