@@ -1,0 +1,50 @@
+# ============================================================================
+# Git Attributes - Line Ending Management
+# ============================================================================
+# This file ensures consistent line endings across Windows, WSL, and Linux.
+#
+# Strategy:
+#   - Shell scripts: Always LF (Unix) - even on Windows, WSL/Git Bash handle this
+#   - PowerShell scripts: Always CRLF (Windows) - required by Windows PowerShell
+#   - Other text files: LF in repository, auto-detected on checkout
+# ============================================================================
+
+# Auto detect text files and normalize to LF in repository
+* text=auto eol=lf
+
+# Shell scripts must always use LF (Unix line endings)
+*.sh text eol=lf
+*.bash text eol=lf
+*.zsh text eol=lf
+.zshrc text eol=lf
+.bashrc text eol=lf
+.bash_profile text eol=lf
+
+# PowerShell scripts must use CRLF (Windows line endings)
+*.ps1 text eol=crlf
+*.psm1 text eol=crlf
+*.psd1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Lua and config files
+*.lua text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.txt text eol=lf
+*.md text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.eot binary
+*.spl binary
