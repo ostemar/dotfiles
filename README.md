@@ -67,19 +67,16 @@ keep my setup consistent across systems.
    ./scripts/install_linux.sh
    ```
 
-3. **Create symlinks:**
+3. **Create symlinks and set default shell:**
 
    ```bash
    ./scripts/setup.sh
    ```
 
-4. **Change your default shell to Zsh** (optional):
+   This will link all config files and automatically set zsh as your default
+   shell.
 
-   ```bash
-   chsh -s $(which zsh)
-   ```
-
-5. **Log out and back in** to activate Zsh
+4. **Log out and back in** to activate Zsh
 
 ## 📁 Repository Structure
 
@@ -161,10 +158,10 @@ Add modules to `packages/powershell_modules.txt` and run the install script.
 
 ### Linux
 
-| Script             | Description                                 | Options                               |
-| ------------------ | ------------------------------------------- | ------------------------------------- |
-| `install_linux.sh` | Installs packages from `packages/linux.txt` | `--dry-run`, `--repo PATH`            |
-| `setup.sh`         | Creates symlinks for Neovim and Zsh configs | `--dry-run`, `--force`, `--repo PATH` |
+| Script             | Description                                                  | Options                               |
+| ------------------ | ------------------------------------------------------------ | ------------------------------------- |
+| `install_linux.sh` | Installs packages from `packages/linux.txt`                  | `--dry-run`, `--repo PATH`            |
+| `setup.sh`         | Creates symlinks for configs; sets zsh as default shell      | `--dry-run`, `--force`, `--repo PATH` |
 
 All scripts are **idempotent** and safe to re-run. They will:
 

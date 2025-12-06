@@ -5,7 +5,8 @@ set -euo pipefail
 # Linux dotfiles setup
 # - Links Neovim config and other ~/.config items
 # - Links bat config to ~/.config/bat
-# - Optionally links ~/.zshrc from repo/zsh/.zshrc
+# - Links ~/.zshrc from repo/zsh/.zshrc
+# - Changes default shell to zsh (if zsh is installed)
 # - Idempotent: backs up existing paths unless --force
 # - Supports --dry-run and --repo
 # ---------------------------------------------
@@ -110,6 +111,53 @@ link_path() {
     else
         ln -s -- "$target" "$linkp"
         ok "Linked: $linkp -> $target"
+    fi
+}
+
+ensure_zsh_shell() {
+    # Check if zsh is installed
+    if ! command -v zsh >/dev/null 2>&1; then
+        warn "zsh not found in PATH. Install zsh first, then re-run this script."
+        warn "  sudo apt-get install zsh  # or your package manager"
+        return 1
+    fi
+
+    local zsh_path
+    zsh_path="$(command -v zsh)"
+
+    # Check if zsh is already the default shell
+    local current_shell
+    current_shell="$(getent passwd "$USER" | cut -d: -f7)"
+    
+    if [ "$current_shell" = "$zsh_path" ]; then
+        ok "Shell already set to zsh: $zsh_path"
+        return 0
+    fi
+
+    # Check if zsh is in /etc/shells
+    if ! grep -qxF "$zsh_path" /etc/shells 2>/dev/null; then
+        warn "zsh ($zsh_path) not listed in /etc/shells"
+        if [ $DRY_RUN -eq 1 ]; then
+            info "Would add: echo '$zsh_path' | sudo tee -a /etc/shells"
+        else
+            info "Adding zsh to /etc/shells..."
+            echo "$zsh_path" | sudo tee -a /etc/shells >/dev/null
+        fi
+    fi
+
+    # Change the shell
+    if [ $DRY_RUN -eq 1 ]; then
+        info "Would run: chsh -s $zsh_path"
+        info "Note: You would need to log out and back in for the shell change to take effect"
+    else
+        info "🔄 Changing default shell to zsh..."
+        if chsh -s "$zsh_path"; then
+            ok "Default shell changed to zsh: $zsh_path"
+            warn "⚠️  Log out and back in for the shell change to take effect"
+        else
+            err "Failed to change shell. You may need to run: chsh -s $zsh_path"
+            return 1
+        fi
     fi
 }
 
@@ -220,6 +268,10 @@ fi
 if [ -f "$ZSH_SRC" ]; then
     info "Linking Zsh config:"
     link_path "$ZSH_SRC" "$ZSH_DST"
+    
+    # Ensure zsh is the default shell
+    info "Ensuring zsh is your default shell:"
+    ensure_zsh_shell
 fi
 
 ok "Setup complete."
