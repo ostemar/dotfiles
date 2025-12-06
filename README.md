@@ -229,6 +229,85 @@ Feel free to fork this repository and customize it for your own use! Here's how:
 - All scripts support **dry-run mode** so you can preview changes before
   applying them
 
+## 🔧 Troubleshooting
+
+### Zsh Startup Errors
+
+If you see errors when starting zsh, here are common issues and fixes:
+
+#### "no such file or directory: .../zsh-syntax-highlighting.zsh^M"
+
+**Cause:** Zinit plugins were cloned with Windows line endings (CRLF) instead of Unix (LF).
+
+**Fix:**
+```bash
+# Remove corrupted plugins
+rm -rf ~/.local/share/zinit/plugins/
+
+# Restart zsh - plugins will auto-reinstall with correct line endings
+zsh
+```
+
+**Prevention:** The `.gitattributes` file in this repo ensures correct line endings across platforms.
+
+#### "no such file or directory: /home/linuxbrew/.linuxbrew/bin/brew"
+
+**Cause:** Homebrew is not installed (it's optional).
+
+**Fix:** Either install Homebrew or ignore - the `.zshrc` will skip it automatically after the fix is applied.
+
+To install Homebrew on Linux:
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+#### "unknown option: --zsh" (fzf error)
+
+**Cause:** Ubuntu 24.04 LTS ships with fzf 0.44.1, but the `--zsh` flag requires fzf 0.48+.
+
+**Fix:** The updated `.zshrc` uses the Ubuntu 24.04 compatible initialization method.
+
+**Future upgrade:** When you upgrade to Ubuntu 25.04+ or install fzf 0.48+, you can simplify the fzf initialization to just: `eval "$(fzf --zsh)"`
+
+#### "no such file or directory: ~/.local/bin/env"
+
+**Cause:** Optional env file doesn't exist (from previous bash setup).
+
+**Fix:** The updated `.zshrc` makes this conditional. The functionality (adding `~/.local/bin` to PATH) is now built into `.zshrc`.
+
+### Cross-Platform Line Endings
+
+This repo uses `.gitattributes` to manage line endings:
+- **Shell scripts** (`.sh`, `.zsh`, `.bash`): Always use LF (Unix)
+- **PowerShell scripts** (`.ps1`): Always use CRLF (Windows)
+- Git handles conversions automatically
+
+**If you see `^M` characters in files:**
+1. Check that `.gitattributes` exists in the repo root
+2. Run: `git rm --cached -r . && git reset --hard`
+3. This will re-checkout all files with correct line endings
+
+### Managing Git Config
+
+This repo will soon include git configuration templates for:
+- **Platform differences:** Windows vs Linux paths and tools
+- **Context switching:** Personal vs work email addresses
+
+For now, configure git manually:
+```bash
+# Personal machine
+git config --global user.email "your-personal@email.com"
+
+# Work machine
+git config --global user.email "your-work@email.com"
+```
+
+### WSL-Specific Notes
+
+- **Snap/Flatpak packages:** Automatically skipped by `install_linux.sh`
+- **Line endings:** WSL respects `.gitattributes` - no special handling needed
+- **Performance:** If zsh is slow to start in WSL, check Windows Defender exclusions
+
 ## 📜 License
 
 MIT License - see [LICENSE](LICENSE) file for details.

@@ -5,6 +5,19 @@ if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
+# ============================================================================
+# SYSTEM COMPATIBILITY NOTES
+# ============================================================================
+# This .zshrc works across:
+#   - Native Linux (Ubuntu 24.04 LTS tested)
+#   - WSL (Windows Subsystem for Linux)
+#
+# Optional dependencies (gracefully skipped if not installed):
+#   - Homebrew (/home/linuxbrew/.linuxbrew/bin/brew)
+#   - NVM (Node Version Manager)
+#   - Custom env file (~/.local/bin/env)
+# ============================================================================
+
 # Set the directory we want to store zinit and plugins
 ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
 
@@ -55,7 +68,11 @@ zinit cdreplay -q
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
-eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+# Homebrew (if installed)
+# Note: Homebrew for Linux installs to /home/linuxbrew/.linuxbrew
+if [[ -x "/home/linuxbrew/.linuxbrew/bin/brew" ]]; then
+  eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+fi
 
 # Key bindings
 bindkey '^f' autosuggest-accept
@@ -98,11 +115,33 @@ zstyle ':fzf-tab:complete:cd:*' fzf-preview 'ls --color $realpath'
 # zstyle ':fzf-tab:complete:__zoxide_z:*' fzf-preview 'ls --color $realpath'
 
 # Shell integrations
-eval "$(fzf --zsh)"
+# fzf - Fuzzy finder integration
+# Note: fzf 0.48+ supports --zsh flag. Ubuntu 24.04 LTS has 0.44.1, so we use the legacy method.
+# When upgrading to Ubuntu 25.04+ or fzf 0.48+, replace these lines with: eval "$(fzf --zsh)"
+if command -v fzf &> /dev/null; then
+  if [[ -f /usr/share/doc/fzf/examples/key-bindings.zsh ]]; then
+    source /usr/share/doc/fzf/examples/key-bindings.zsh
+  fi
+  if [[ -f /usr/share/doc/fzf/examples/completion.zsh ]]; then
+    source /usr/share/doc/fzf/examples/completion.zsh
+  fi
+fi
+
+# zoxide - Smarter cd command
 eval "$(zoxide init --cmd cd zsh)"
 
+# NVM (Node Version Manager) - if installed
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
 
-. "$HOME/.local/bin/env"
+# Add ~/.local/bin to PATH if not already there
+# This is where user-installed tools (pip, uv, cargo, etc.) place binaries
+if [[ -d "$HOME/.local/bin" ]] && [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+  export PATH="$HOME/.local/bin:$PATH"
+fi
+
+# Source additional environment config if it exists
+if [[ -f "$HOME/.local/bin/env" ]]; then
+  . "$HOME/.local/bin/env"
+fi
