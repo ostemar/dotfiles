@@ -1,35 +1,39 @@
-7zip
-azure-cli
-bat
-beyondcompare
-difftastic
-fd
-ffmpeg
-fzf
-gh
-git
-glow
-greenshot
-jq
-lazygit
-less
-mRemoteNG
-microsoft-windows-terminal
-mingw
-msbuild-structured-log-viewer
-neovim
-nodejs
-nunit-console-runner
-poshgit
-oh-my-posh
-powertoys
-python
-ripgrep
-terraform
-vscode
-yq
-visualstudio2022professional
-tree-sitter
-delta
-eza
-ntop.portable
+choco 7zip
+choco azure-cli
+choco bat
+choco beyondcompare
+choco difftastic
+choco fd
+choco ffmpeg
+choco fzf
+choco gh
+choco git
+choco glow
+choco greenshot
+choco jq
+choco lazygit
+choco less
+choco mRemoteNG
+choco microsoft-windows-terminal
+choco mingw
+choco msbuild-structured-log-viewer
+choco neovim
+choco nodejs
+choco nunit-console-runner
+choco poshgit
+choco oh-my-posh
+choco powertoys
+choco python
+choco ripgrep
+choco terraform
+choco vscode
+choco yq
+choco visualstudio2022professional
+choco tree-sitter
+choco delta
+choco eza
+choco ntop.portable
+
+# (use winget app.Id format)
+# winget Microsoft.VisualStudioCode
+# winget Microsoft.PowerToys
