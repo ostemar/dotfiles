@@ -31,18 +31,38 @@ if (-not $SetupPath) {
 
 Write-Host "📦 Starting Windows environment setup..." -ForegroundColor Cyan
 
-# ---------- Ensure Chocolatey or Winget exists ------------------------------
-function Install-Chocolatey {
-  Write-Host "🔸 Chocolatey not found. Installing..."
-  Set-ExecutionPolicy Bypass -Scope Process -Force
-  [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
-  Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+# ---------- Lazy Chocolatey installation ------------------------------------
+$script:ChocoVerified = $false
+
+function Ensure-Chocolatey {
+  if ($script:ChocoVerified) { return $true }
+
+  if (Get-Command choco -ErrorAction SilentlyContinue) {
+    $script:ChocoVerified = $true
+    return $true
+  }
+
+  if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+    Write-Warning "⚠️ Neither Chocolatey nor Winget available. Cannot install Chocolatey."
+    return $false
+  }
+
+  Write-Host "🔸 Installing Chocolatey via Winget..."
+  winget install Chocolatey.Chocolatey -e --accept-source-agreements --accept-package-agreements
+  if ($LASTEXITCODE -ne 0) {
+    Write-Warning "⚠️ Failed to install Chocolatey via Winget."
+    return $false
+  }
+
+  # Refresh PATH to pick up choco
   $refresh = Join-Path $env:ChocolateyInstall "bin\refreshenv.ps1"
   if (Test-Path $refresh) { . $refresh }
-}
 
-if ((-not (Get-Command choco -ErrorAction SilentlyContinue)) -and (-not (Get-Command winget -ErrorAction SilentlyContinue))) {
-  Install-Chocolatey
+  # Also update PATH manually in case refreshenv doesn't exist yet
+  $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+
+  $script:ChocoVerified = $true
+  return $true
 }
 
 # ---------- Helpers ----------------------------------------------------------
@@ -64,47 +84,97 @@ function Test-WingetInstalled {
   return (($LASTEXITCODE -eq 0) -and $nameCheck)
 }
 
-function Install-PackageSafe {
+function Install-WithChoco {
   param([string]$PackageName)
+  if (-not (Ensure-Chocolatey)) {
+    Write-Warning "⚠️ Chocolatey not available for $PackageName"
+    return $false
+  }
+  Write-Host "Installing $PackageName (Chocolatey)..."
+  choco install $PackageName -y --no-progress
+  return ($LASTEXITCODE -eq 0)
+}
+
+function Install-WithWinget {
+  param([string]$PackageName)
+  if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+    Write-Warning "⚠️ Winget not available for $PackageName"
+    return $false
+  }
+  if ($PackageName -match "\.") {
+    Write-Host "Installing $PackageName (Winget by Id)..."
+    winget install --id $PackageName -e --accept-source-agreements --accept-package-agreements
+  } else {
+    Write-Host "Installing $PackageName (Winget by Name)..."
+    winget install --name $PackageName -e --accept-source-agreements --accept-package-agreements
+  }
+  return ($LASTEXITCODE -eq 0)
+}
+
+function Install-PackageSafe {
+  param(
+    [string]$PackageName,
+    [string]$Manager = ""
+  )
 
   if (-not $PackageName) { return }
 
-  Write-Host "`n→ Checking $PackageName..."
+  Write-Host "`n-> Checking $PackageName..."
 
-  if ((Test-ChocoInstalled -Name $PackageName) -or (Test-WingetInstalled -Name $PackageName)) {
-    Write-Host "✅ $PackageName already installed"
+  # Check if already installed using the appropriate manager
+  $alreadyInstalled = switch ($Manager.ToLower()) {
+    "choco"  { Test-ChocoInstalled -Name $PackageName }
+    "winget" { Test-WingetInstalled -Name $PackageName }
+    default  { (Test-ChocoInstalled -Name $PackageName) -or (Test-WingetInstalled -Name $PackageName) }
+  }
+
+  if ($alreadyInstalled) {
+    Write-Host "OK $PackageName already installed"
     return
   }
 
-  if (Get-Command choco -ErrorAction SilentlyContinue) {
-    Write-Host "Installing $PackageName (Chocolatey)..."
-    choco install $PackageName -y --no-progress
-    if ($LASTEXITCODE -eq 0) { return }
-    Write-Warning "⚠️ Chocolatey failed for $($PackageName). Will try Winget if available."
-  }
+  $success = $false
 
-  if (Get-Command winget -ErrorAction SilentlyContinue) {
-    if ($PackageName -match "\.") {
-      Write-Host "Installing $PackageName (Winget by Id)..."
-      winget install --id $PackageName -e --accept-source-agreements --accept-package-agreements
-    } else {
-      Write-Host "Installing $PackageName (Winget by Name)..."
-      winget install --name $PackageName -e --accept-source-agreements --accept-package-agreements
+  switch ($Manager.ToLower()) {
+    "choco" {
+      $success = Install-WithChoco -PackageName $PackageName
     }
-    if ($LASTEXITCODE -eq 0) { return }
+    "winget" {
+      $success = Install-WithWinget -PackageName $PackageName
+    }
+    default {
+      # Default: try choco first, fallback to winget
+      $success = Install-WithChoco -PackageName $PackageName
+      if (-not $success) {
+        Write-Warning "Chocolatey failed for $PackageName. Trying Winget..."
+        $success = Install-WithWinget -PackageName $PackageName
+      }
+    }
   }
 
-  Write-Warning "❌ Failed to install $($PackageName). Please install it manually."
+  if (-not $success) {
+    Write-Warning "Failed to install $PackageName. Please install it manually."
+  }
 }
 
 # ---------- Install Windows packages ----------------------------------------
+# Format: "manager package" (e.g., "choco 7zip" or "winget Microsoft.VisualStudioCode")
+# If no manager specified, defaults to choco with winget fallback
 if (Test-Path $PKG_FILE) {
-  $packages = Get-Content $PKG_FILE | Where-Object { $_ -and $_ -notmatch '^\s*#' } | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" }
-  foreach ($pkg in $packages) {
-    Install-PackageSafe -PackageName $pkg
+  $lines = Get-Content $PKG_FILE | Where-Object { $_ -and $_ -notmatch '^\s*#' } | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" }
+  foreach ($line in $lines) {
+    $parts = $line -split '\s+', 2
+    if ($parts.Count -eq 2 -and $parts[0] -match '^(choco|winget)$') {
+      $manager = $parts[0]
+      $pkg = $parts[1]
+    } else {
+      $manager = ""
+      $pkg = $line
+    }
+    Install-PackageSafe -PackageName $pkg -Manager $manager
   }
 } else {
-  Write-Warning "⚠️ No package list found at $($PKG_FILE)"
+  Write-Warning "No package list found at $PKG_FILE"
 }
 
 # ---------- Install PowerShell modules --------------------------------------
