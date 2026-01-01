@@ -30,6 +30,7 @@ winget Microsoft.VisualStudio.2022.Professional
 winget dandavison.delta
 winget eza-community.eza
 winget gsass1.NTop
+winget GoLang.Go
 winget Rustlang.Rustup
 winget RustDesk.RustDesk
 winget Anthropic.ClaudeCode
