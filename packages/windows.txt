@@ -27,6 +27,7 @@ winget Hashicorp.Terraform
 winget Microsoft.VisualStudioCode
 winget MikeFarah.yq
 winget Microsoft.VisualStudio.2022.Professional
+winget Microsoft.VisualStudio.Professional.Insiders
 winget dandavison.delta
 winget eza-community.eza
 winget gsass1.NTop
