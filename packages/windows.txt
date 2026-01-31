@@ -2,7 +2,7 @@ winget Google.Chrome
 winget 7zip.7zip
 winget Microsoft.AzureCLI
 winget sharkdp.bat
-winget ScooterSoftware.BeyondCompare.5
+winget ScooterSoftware.BeyondCompare.4
 winget Wilfred.difftastic
 winget sharkdp.fd
 winget Gyan.FFmpeg
@@ -28,6 +28,7 @@ winget Microsoft.VisualStudioCode
 winget MikeFarah.yq
 winget Microsoft.VisualStudio.2022.Professional
 winget Microsoft.VisualStudio.Professional.Insiders
+winget Microsoft.SQLServerManagementStudio.22
 winget dandavison.delta
 winget eza-community.eza
 winget gsass1.NTop
@@ -41,6 +42,7 @@ winget Dropbox.Dropbox
 winget Spotify.Spotify
 winget JetBrains.Rider
 winget JetBrains.ReSharper
+# winget Docker.DockerDesktop
 choco mingw
 choco poshgit
 choco nunit-console-runner
