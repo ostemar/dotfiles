@@ -16,7 +16,13 @@ local isWsl = isLinux and vim.loop.os_uname().release:find("Microsoft") and true
 
 --Set shell
 if isWin then
-  if vim.fn.executable("pwsh") == 1 then
+  local bash_path = "C:\\Progra~1\\Git\\bin\\bash.exe"
+  if vim.fn.executable(bash_path) == 1 then
+    vim.opt.shell = bash_path
+    vim.opt.shellcmdflag = "-c"
+    vim.opt.shellxquote = '"'
+    vim.opt.shellslash = false
+  elseif vim.fn.executable("pwsh") == 1 then
     vim.opt.shell = "pwsh" --"pwsh" for 7.x if installed
   else
     vim.opt.shell = "powershell" --"powershell" for 5.x
