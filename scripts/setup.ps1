@@ -3,6 +3,7 @@
   Create Windows symlinks for your dotfiles:
   - %LOCALAPPDATA%\nvim  →  <repo>\nvim
   - %APPDATA%\bat  →  <repo>\bat
+  - %USERPROFILE%\.wezterm.lua  →  <repo>\wezterm\wezterm.lua
   - For each file in <repo>\powershell\ →  $HOME\Documents\PowerShell\
     * Special-case: Microsoft.PowerShell_profile.ps1 → $PROFILE
 
@@ -35,6 +36,7 @@ $NvimSource      = Join-Path $RepoRoot "nvim"
 $BatSource       = Join-Path $RepoRoot "bat"
 $DeltaSource     = Join-Path $RepoRoot "delta"
 $LazygitSource   = Join-Path $RepoRoot "lazygit"
+$WeztermSource   = Join-Path $RepoRoot "wezterm\wezterm.lua"
 $PwshRepoDir     = Join-Path $RepoRoot "powershell"
 
 # Key user paths
@@ -43,6 +45,7 @@ $BatTarget       = Join-Path $env:APPDATA "bat"
 $ConfigDir       = Join-Path $HOME ".config"
 $DeltaTarget     = Join-Path $ConfigDir "delta"
 $LazygitTarget   = Join-Path $env:LOCALAPPDATA "lazygit"
+$WeztermTarget   = Join-Path $HOME ".wezterm.lua"
 $UserPwshDir     = Split-Path -Parent $PROFILE  # typically: $HOME\Documents\PowerShell
 $ProfileTarget   = $PROFILE                     # exact host-specific profile path
 
@@ -52,6 +55,7 @@ Write-Host "  Neovim:     $NvimSource  →  $NvimTarget"
 Write-Host "  Bat:        $BatSource  →  $BatTarget"
 Write-Host "  Delta:      $DeltaSource  →  $DeltaTarget"
 Write-Host "  Lazygit:    $LazygitSource  →  $LazygitTarget"
+Write-Host "  WezTerm:    $WeztermSource  →  $WeztermTarget"
 Write-Host "  PS folder:  $PwshRepoDir  →  $UserPwshDir (files only)"
 
 # ---------- Helpers ----------------------------------------------------------
@@ -132,6 +136,9 @@ if (-not (Test-Path -LiteralPath $DeltaSource)) {
 if (-not (Test-Path -LiteralPath $LazygitSource)) {
   Write-Warning "⚠️ Lazygit source not found: $LazygitSource (skipping lazygit setup)"
 }
+if (-not (Test-Path -LiteralPath $WeztermSource)) {
+  Write-Warning "⚠️ WezTerm source not found: $WeztermSource (skipping wezterm setup)"
+}
 
 # ---------- Link Neovim ------------------------------------------------------
 try {
@@ -180,6 +187,16 @@ if (Test-Path -LiteralPath $LazygitSource) {
     Write-Host "✅ Linked Lazygit config" -ForegroundColor Green
   } catch {
     Write-Warning "⚠️ Lazygit link failed: $($_.Exception.Message)"
+  }
+}
+
+# ---------- Link WezTerm -----------------------------------------------------
+if (Test-Path -LiteralPath $WeztermSource) {
+  try {
+    New-SafeSymlink -LinkPath $WeztermTarget -TargetPath $WeztermSource
+    Write-Host "✅ Linked WezTerm config" -ForegroundColor Green
+  } catch {
+    Write-Warning "⚠️ WezTerm link failed: $($_.Exception.Message)"
   }
 }
 

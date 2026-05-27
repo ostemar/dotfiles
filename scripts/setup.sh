@@ -201,6 +201,8 @@ BAT_SRC="$REPO_ROOT/bat"
 BAT_DST="$CONFIG_DIR/bat"
 LAZYGIT_SRC="$REPO_ROOT/lazygit"
 LAZYGIT_DST="$CONFIG_DIR/lazygit"
+WEZTERM_SRC="$REPO_ROOT/wezterm/wezterm.lua"
+WEZTERM_DST="$HOME/.wezterm.lua"
 CONFIG_SRC="$REPO_ROOT/config" # future layout: repo/config/<name> → ~/.config/<name>
 ZSH_SRC="$REPO_ROOT/zsh/.zshrc"
 ZSH_DST="$HOME/.zshrc"
@@ -250,6 +252,12 @@ fi
 if [ -e "$LAZYGIT_SRC" ]; then
     info "Linking Lazygit config (top-level):"
     link_path "$LAZYGIT_SRC" "$LAZYGIT_DST"
+fi
+
+# ---------- Link WezTerm (top-level 'wezterm/' layout) ----------
+if [ -e "$WEZTERM_SRC" ]; then
+    info "Linking WezTerm config:"
+    link_path "$WEZTERM_SRC" "$WEZTERM_DST"
 fi
 
 # ---------- Link any repo/config/* → ~/.config/<name> ----------

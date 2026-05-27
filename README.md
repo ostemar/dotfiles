@@ -9,6 +9,8 @@ keep my setup consistent across systems.
 ### 🖥️ Cross-Platform
 
 - **Neovim** - Full LazyVim configuration with custom plugins
+- **WezTerm** - Terminal config (Catppuccin Mocha, JetBrainsMono Nerd Font,
+  vim-style pane keybinds; platform-guarded for Windows/Linux)
 - **Bat** - Syntax highlighting for cat with Catppuccin Mocha theme
 - **Git** - Configuration and tooling
 - Modern CLI tools (ripgrep, fzf, fd, bat, etc.)
@@ -94,6 +96,8 @@ dotfiles/
 ├── powershell/             # PowerShell configuration
 │   ├── Microsoft.PowerShell_profile.ps1
 │   └── .oh-my-posh.ostemar.json
+├── wezterm/                # WezTerm terminal config
+│   └── wezterm.lua
 ├── zsh/                    # Zsh configuration
 │   └── .zshrc
 ├── packages/               # Package lists
@@ -154,7 +158,7 @@ Add modules to `packages/powershell_modules.txt` and run the install script.
 | Script                | Description                                        | Options                             |
 | --------------------- | -------------------------------------------------- | ----------------------------------- |
 | `install_windows.ps1` | Installs packages and optionally runs setup        | `-RunSetup` to also create symlinks |
-| `setup.ps1`           | Creates symlinks for Neovim and PowerShell configs | `-WhatIf` for dry-run mode          |
+| `setup.ps1`           | Creates symlinks for Neovim, WezTerm, PowerShell, and tool configs | `-WhatIf` for dry-run mode          |
 
 ### Linux
 
