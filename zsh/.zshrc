@@ -84,6 +84,7 @@ bindkey '^n' history-search-forward
 
 # Aliases
 # alias ls='ls --color'
+alias v='nvim'
 alias nv='nvim'
 alias c='clear'
 # alias ll="exa -l -g --icons --git"
