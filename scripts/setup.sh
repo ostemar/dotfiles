@@ -206,6 +206,8 @@ WEZTERM_DST="$HOME/.wezterm.lua"
 CONFIG_SRC="$REPO_ROOT/config" # future layout: repo/config/<name> → ~/.config/<name>
 ZSH_SRC="$REPO_ROOT/zsh/.zshrc"
 ZSH_DST="$HOME/.zshrc"
+P10K_SRC="$REPO_ROOT/zsh/.p10k.zsh"
+P10K_DST="$HOME/.p10k.zsh"
 
 log "---------------------------------------------"
 log "Dotfiles setup (Linux)"
@@ -280,6 +282,12 @@ if [ -f "$ZSH_SRC" ]; then
     # Ensure zsh is the default shell
     info "Ensuring zsh is your default shell:"
     ensure_zsh_shell
+fi
+
+# ---------- Link ~/.p10k.zsh (Powerlevel10k prompt) if present in repo ----------
+if [ -f "$P10K_SRC" ]; then
+    info "Linking Powerlevel10k config:"
+    link_path "$P10K_SRC" "$P10K_DST"
 fi
 
 ok "Setup complete."
