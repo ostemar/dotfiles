@@ -25,11 +25,21 @@ apt eza
 # apt htop
 # apt btop
 # apt dust
-# apt nodejs npm
-# apt golang-go
 # apt docker.io
 # apt nmap
 # apt zip
+
+# -----------------------------
+# D E V  (language toolchains via official installers)
+# Installed by install_linux.sh, not apt — keeps versions current and
+# self-updating. PATH wiring lives in zsh/.zshrc. Safe to re-run.
+#   dev rust   -> rustup (~/.cargo)
+#   dev go     -> latest official tarball (/usr/local/go)
+#   dev node   -> nvm + Node LTS (~/.nvm)
+# -----------------------------
+dev rust
+dev go
+dev node
 
 # If you want flatpak/snap management tools too (native Ubuntu only):
 # apt flatpak

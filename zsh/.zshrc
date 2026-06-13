@@ -139,6 +139,15 @@ export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
 
+# Rust (rustup) - if installed. Puts ~/.cargo/bin on PATH.
+[ -s "$HOME/.cargo/env" ] && \. "$HOME/.cargo/env"
+
+# Go - if installed via official tarball (/usr/local/go). Also expose ~/go/bin
+# for `go install`-ed binaries.
+if [[ -d /usr/local/go/bin ]] && [[ ":$PATH:" != *":/usr/local/go/bin:"* ]]; then
+  export PATH="$PATH:/usr/local/go/bin:$HOME/go/bin"
+fi
+
 # Add ~/.local/bin to PATH if not already there
 # This is where user-installed tools (pip, uv, cargo, etc.) place binaries
 if [[ -d "$HOME/.local/bin" ]] && [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then

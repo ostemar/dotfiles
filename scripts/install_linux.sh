@@ -105,6 +105,7 @@ log "---------------------------------------------"
 APT_PKGS=()
 SNAP_LINES=() # each entry is full "pkg [flags]"
 FLAT_LINES=() # each entry is full "app.id [flags]"
+DEV_LINES=()  # each entry is a toolchain name: rust | go | node
 
 # Strip comments and blank lines; keep manager + remainder
 while IFS= read -r raw; do
@@ -121,6 +122,7 @@ while IFS= read -r raw; do
     apt) [ -n "$rest" ] && APT_PKGS+=("$rest") ;;
     snap) [ -n "$rest" ] && SNAP_LINES+=("$rest") ;;
     flat) [ -n "$rest" ] && FLAT_LINES+=("$rest") ;;
+    dev) [ -n "$rest" ] && DEV_LINES+=("$rest") ;;
     *) warn "Unknown manager '$manager' in line: $raw" ;;
     esac
 done <"$PKG_FILE"
@@ -137,6 +139,69 @@ snap_installed() {
 
 flat_installed() {
     flatpak info "$1" >/dev/null 2>&1
+}
+
+# ---------- Dev toolchain installers (idempotent) ----------
+# These use the canonical upstream installers rather than apt so the versions
+# stay current and self-updating. PATH wiring is handled in zsh/.zshrc.
+install_rust() {
+    if command -v rustc >/dev/null 2>&1 || [ -x "$HOME/.cargo/bin/rustc" ]; then
+        ok "dev: rust already installed ($("${HOME}/.cargo/bin/rustc" --version 2>/dev/null || rustc --version 2>/dev/null))"
+        return
+    fi
+    info "dev: installing rust via rustup"
+    # --no-modify-path: shell PATH is managed by zsh/.zshrc (sources ~/.cargo/env)
+    run "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path"
+}
+
+install_go() {
+    local arch want current tarball url
+    arch="$(dpkg --print-architecture 2>/dev/null || echo amd64)" # amd64 | arm64
+    want="$(curl -fsSL 'https://go.dev/VERSION?m=text' 2>/dev/null | head -1)" # e.g. go1.26.4
+    if [ -z "$want" ]; then
+        warn "dev: could not determine latest Go version (offline?); skipping go"
+        return
+    fi
+    if [ -x /usr/local/go/bin/go ]; then
+        current="$(/usr/local/go/bin/go version | awk '{print $3}')"
+        if [ "$current" = "$want" ]; then
+            ok "dev: go already installed ($current)"
+            return
+        fi
+        info "dev: updating go ($current -> $want)"
+    else
+        info "dev: installing go $want"
+    fi
+    tarball="${want}.linux-${arch}.tar.gz"
+    url="https://go.dev/dl/${tarball}"
+    run "curl -fsSL '$url' -o '/tmp/${tarball}'"
+    run "sudo rm -rf /usr/local/go"
+    run "sudo tar -C /usr/local -xzf '/tmp/${tarball}'"
+    run "rm -f '/tmp/${tarball}'"
+}
+
+install_node() {
+    local nvm_ver="v0.40.5"
+    export NVM_DIR="$HOME/.nvm"
+    if [ -s "$NVM_DIR/nvm.sh" ]; then
+        ok "dev: nvm already installed"
+    else
+        info "dev: installing nvm $nvm_ver"
+        run "curl -fsSL 'https://raw.githubusercontent.com/nvm-sh/nvm/${nvm_ver}/install.sh' | bash"
+    fi
+    if [ $DRY_RUN -eq 1 ]; then
+        echo "• nvm install --lts && nvm alias default 'lts/*'"
+        return
+    fi
+    # shellcheck disable=SC1091
+    . "$NVM_DIR/nvm.sh"
+    if nvm which default >/dev/null 2>&1; then
+        ok "dev: node already installed ($(node -v 2>/dev/null))"
+    else
+        info "dev: installing Node LTS via nvm"
+        nvm install --lts
+        nvm alias default 'lts/*'
+    fi
 }
 
 # ---------- APT installs ----------
@@ -224,6 +289,21 @@ if [ "${#FLAT_LINES[@]}" -gt 0 ]; then
             fi
         done
     fi
+fi
+
+# ---------- DEV toolchains ----------
+if [ "${#DEV_LINES[@]}" -gt 0 ]; then
+    info "Setting up developer toolchains..."
+    for line in "${DEV_LINES[@]}"; do
+        tool="$(printf "%s" "$line" | awk '{print $1}')"
+        case "$tool" in
+        rust) install_rust ;;
+        go) install_go ;;
+        node) install_node ;;
+        *) warn "Unknown dev tool '$tool' in line: dev $line" ;;
+        esac
+    done
+    warn "Dev toolchains: open a new shell (or 'source ~/.zshrc') to pick up PATH changes."
 fi
 
 ok "Install complete."
