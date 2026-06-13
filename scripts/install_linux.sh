@@ -204,6 +204,53 @@ install_node() {
     fi
 }
 
+install_neovim() {
+    local arch nvim_arch want current tarball url
+    arch="$(dpkg --print-architecture 2>/dev/null || echo amd64)" # amd64 | arm64
+    case "$arch" in
+    amd64) nvim_arch="x86_64" ;;
+    arm64) nvim_arch="arm64" ;;
+    *)
+        warn "dev: unsupported arch '$arch' for neovim; skipping"
+        return
+        ;;
+    esac
+
+    # Latest stable release tag, e.g. v0.12.3 (excludes nightly/prereleases).
+    want="$(curl -fsSL https://api.github.com/repos/neovim/neovim/releases/latest 2>/dev/null |
+        grep -m1 '"tag_name"' | sed -E 's/.*"(v[0-9.]+)".*/\1/')"
+    if [ -z "$want" ]; then
+        warn "dev: could not determine latest Neovim version (offline/rate-limited?); skipping neovim"
+        return
+    fi
+
+    # Drop the apt-managed neovim so there's a single, current copy on PATH.
+    if dpkg -s neovim >/dev/null 2>&1; then
+        info "dev: removing apt-managed neovim (replaced by upstream tarball)"
+        run "sudo apt-get remove -y neovim"
+    fi
+
+    if [ -x /opt/nvim/bin/nvim ]; then
+        current="$(/opt/nvim/bin/nvim --version | head -1 | awk '{print $2}')" # vX.Y.Z
+        if [ "$current" = "$want" ]; then
+            ok "dev: neovim already installed ($current)"
+            return
+        fi
+        info "dev: updating neovim ($current -> $want)"
+    else
+        info "dev: installing neovim $want"
+    fi
+
+    tarball="nvim-linux-${nvim_arch}.tar.gz"
+    url="https://github.com/neovim/neovim/releases/download/${want}/${tarball}"
+    run "curl -fsSL '$url' -o '/tmp/${tarball}'"
+    run "sudo rm -rf /opt/nvim '/opt/nvim-linux-${nvim_arch}'"
+    run "sudo tar -C /opt -xzf '/tmp/${tarball}'"
+    run "sudo mv '/opt/nvim-linux-${nvim_arch}' /opt/nvim"
+    run "sudo ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim"
+    run "rm -f '/tmp/${tarball}'"
+}
+
 install_claude() {
     if command -v claude >/dev/null 2>&1 || [ -x "$HOME/.local/bin/claude" ]; then
         ok "dev: claude already installed ($("${HOME}/.local/bin/claude" --version 2>/dev/null || claude --version 2>/dev/null))"
@@ -309,6 +356,7 @@ if [ "${#DEV_LINES[@]}" -gt 0 ]; then
         rust) install_rust ;;
         go) install_go ;;
         node) install_node ;;
+        neovim) install_neovim ;;
         claude) install_claude ;;
         *) warn "Unknown dev tool '$tool' in line: dev $line" ;;
         esac

@@ -4,7 +4,6 @@
 apt build-essential
 apt curl
 apt git
-apt neovim
 apt ripgrep
 apt fzf
 apt fd-find
@@ -41,11 +40,13 @@ apt ffmpeg
 #   dev rust   -> rustup (~/.cargo)
 #   dev go     -> latest official tarball (/usr/local/go)
 #   dev node   -> nvm + Node LTS (~/.nvm)
+#   dev neovim -> latest stable tarball (/opt/nvim, linked into /usr/local/bin)
 #   dev claude -> Claude Code via official install.sh (~/.local/bin)
 # -----------------------------
 dev rust
 dev go
 dev node
+dev neovim
 dev claude
 
 # If you want flatpak/snap management tools too (native Ubuntu only):
