@@ -18,6 +18,7 @@ apt yq
 apt git-delta
 apt zoxide
 apt eza
+apt lazygit
 
 # -- Things to try out ------
 # apt stow
