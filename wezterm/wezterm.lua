@@ -28,6 +28,10 @@ if is_windows then
 	config.window_background_opacity = 0.9
 
 	config.launch_menu = {
+		-- Default WSL distro, starting in the Linux home dir. Distro-agnostic:
+		-- once a default distro is installed (e.g. `wsl --install Ubuntu`), this
+		-- just works without naming it here.
+		{ label = "WSL", args = { "wsl.exe", "--cd", "~" } },
 		{ label = "Git Bash", args = { "C:/Program Files/Git/bin/bash.exe", "-i", "-l" }, cwd = "C:/code/osr" },
 		{ label = "cmd", args = { "cmd.exe" } },
 	}
@@ -42,7 +46,9 @@ config.leader = { key = "Space", mods = "CTRL", timeout_milliseconds = 1000 }
 config.keys = {
 	-- Ctrl+Shift+L opens the launcher (overrides the default debug overlay, which
 	-- is still reachable via the command palette, Ctrl+Shift+P).
-	{ key = "L", mods = "CTRL|SHIFT", action = act.ShowLauncherArgs({ flags = "FUZZY|LAUNCH_MENU_ITEMS|DOMAINS|TABS" }) },
+	-- Only the curated launch_menu shows here; DOMAINS/TABS are omitted so WezTerm's
+	-- auto-enumerated WSL distros (e.g. docker-desktop) and open tabs don't clutter it.
+	{ key = "L", mods = "CTRL|SHIFT", action = act.ShowLauncherArgs({ flags = "FUZZY|LAUNCH_MENU_ITEMS" }) },
 
 	-- Panes (after leader): s = split down, v = split right, w = close.
 	{ key = "s", mods = "LEADER", action = act.SplitVertical({ domain = "CurrentPaneDomain" }) },
