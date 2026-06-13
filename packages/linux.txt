@@ -19,6 +19,10 @@ apt git-delta
 apt zoxide
 apt eza
 apt lazygit
+apt gh
+apt tree-sitter-cli
+apt glow
+apt ffmpeg
 
 # -- Things to try out ------
 # apt stow
@@ -37,10 +41,12 @@ apt lazygit
 #   dev rust   -> rustup (~/.cargo)
 #   dev go     -> latest official tarball (/usr/local/go)
 #   dev node   -> nvm + Node LTS (~/.nvm)
+#   dev claude -> Claude Code via official install.sh (~/.local/bin)
 # -----------------------------
 dev rust
 dev go
 dev node
+dev claude
 
 # If you want flatpak/snap management tools too (native Ubuntu only):
 # apt flatpak

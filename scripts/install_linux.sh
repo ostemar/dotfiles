@@ -204,6 +204,15 @@ install_node() {
     fi
 }
 
+install_claude() {
+    if command -v claude >/dev/null 2>&1 || [ -x "$HOME/.local/bin/claude" ]; then
+        ok "dev: claude already installed ($("${HOME}/.local/bin/claude" --version 2>/dev/null || claude --version 2>/dev/null))"
+        return
+    fi
+    info "dev: installing Claude Code via official installer"
+    run "curl -fsSL https://claude.ai/install.sh | bash"
+}
+
 # ---------- APT installs ----------
 if [ "${#APT_PKGS[@]}" -gt 0 ]; then
     info "Preparing apt..."
@@ -300,6 +309,7 @@ if [ "${#DEV_LINES[@]}" -gt 0 ]; then
         rust) install_rust ;;
         go) install_go ;;
         node) install_node ;;
+        claude) install_claude ;;
         *) warn "Unknown dev tool '$tool' in line: dev $line" ;;
         esac
     done
