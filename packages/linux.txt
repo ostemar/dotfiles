@@ -23,6 +23,8 @@ apt tree-sitter-cli
 apt glow
 apt ffmpeg
 apt tmux
+apt libdbus-1-dev
+apt pkg-config
 
 # -- Things to try out ------
 # apt stow
