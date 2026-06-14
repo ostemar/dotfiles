@@ -22,10 +22,10 @@ apt gh
 apt tree-sitter-cli
 apt glow
 apt ffmpeg
+apt tmux
 
 # -- Things to try out ------
 # apt stow
-# apt tmux
 # apt htop
 # apt btop
 # apt dust
