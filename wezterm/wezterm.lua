@@ -31,6 +31,7 @@ if is_windows then
 		-- Default WSL distro, starting in the Linux home dir. Distro-agnostic:
 		-- once a default distro is installed (e.g. `wsl --install Ubuntu`), this
 		-- just works without naming it here.
+		{ label = "pwsh", args = { "pwsh.exe", "-NoLogo" } },
 		{ label = "WSL", args = { "wsl.exe", "--cd", "~" } },
 		{ label = "Git Bash", args = { "C:/Program Files/Git/bin/bash.exe", "-i", "-l" }, cwd = "C:/code/osr" },
 		{ label = "cmd", args = { "cmd.exe" } },
