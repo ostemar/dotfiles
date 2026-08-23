@@ -17,10 +17,8 @@ apt yq
 apt git-delta
 apt zoxide
 apt eza
-apt lazygit
 apt gh
 apt tree-sitter-cli
-apt glow
 apt ffmpeg
 apt tmux
 apt libdbus-1-dev
@@ -44,12 +42,33 @@ apt pkg-config
 #   dev node   -> nvm + Node LTS (~/.nvm)
 #   dev neovim -> latest stable tarball (/opt/nvim, linked into /usr/local/bin)
 #   dev claude -> Claude Code via official install.sh (~/.local/bin)
+#   dev wezterm-> nightly .deb from GitHub releases (skipped on WSL)
+#   dev lazygit-> upstream release tarball (/usr/local/bin)
+#   dev glow   -> upstream .deb (stays dpkg-managed)
 # -----------------------------
 dev rust
 dev go
 dev node
 dev neovim
 dev claude
+# WezTerm is not in the Ubuntu archive at all, and its apt repo still serves the
+# Feb 2024 stable tag, so this tracks the daily-rebuilt nightly instead. The
+# Flatpak build is sandboxed and there is no official snap.
+dev wezterm
+# Neither of these is in the Ubuntu archive on any current release, so they come
+# from upstream releases rather than apt.
+dev lazygit
+dev glow
+
+# -----------------------------
+# F O N T S  (Nerd Fonts, per-user into ~/.local/share/fonts)
+# (skipped on WSL automatically -- the Windows host supplies fonts there)
+# Name is the Nerd Fonts release archive name; installs the plain NF faces,
+# which register as both "JetBrainsMono Nerd Font" and "JetBrainsMono NF".
+# Required by wezterm/wezterm.lua -- without it WezTerm falls back to DejaVu
+# Sans Mono and the powerlevel10k glyphs render as tofu.
+# -----------------------------
+font JetBrainsMono
 
 # If you want flatpak/snap management tools too (native Ubuntu only):
 # apt flatpak

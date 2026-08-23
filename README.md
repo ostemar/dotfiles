@@ -28,6 +28,8 @@ keep my setup consistent across systems.
   [Powerlevel10k](https://github.com/romkatv/powerlevel10k)
 - [Zinit](https://github.com/zdharma-continuum/zinit) plugin manager
 - Auto-suggestions, syntax highlighting, and fuzzy completion
+- **WezTerm** installed from the upstream nightly `.deb` (not apt, not
+  snap/flatpak) plus the JetBrainsMono Nerd Font it needs
 - Support for both native Ubuntu and WSL
 
 ## 🎯 Quick Start
@@ -139,7 +141,15 @@ Edit `packages/linux.txt` using the format:
 apt  package-name           # APT packages
 snap package-name --classic # Snap packages (skipped on WSL)
 flat app.id                 # Flatpak apps (skipped on WSL)
+dev  toolchain              # Upstream installers (rust, go, node, neovim,
+                            #   claude, wezterm, lazygit, glow) -- used
+                            #   where apt lags or has no package at all
+font NerdFontName           # Nerd Fonts into ~/.local/share/fonts
+                            #   (skipped on WSL)
 ```
+
+`dev` and `font` entries fetch the current upstream release and are idempotent:
+re-running `install_linux.sh` is also how you update them.
 
 Then run:
 

@@ -7,12 +7,16 @@ set -euo pipefail
 #   apt  <pkg>
 #   snap <pkg> [flags]
 #   flat <app.id> [flags]
+#   dev  <toolchain>
+#   font <NerdFontName>
 #
 # Examples:
 #   apt  ripgrep
 #   apt  fd-find
 #   snap code --classic
 #   flat com.brave.Browser
+#   dev  rust
+#   font JetBrainsMono
 #
 # Safe to re-run. Skips already-installed packages.
 # -------------------------------------------------------
@@ -106,6 +110,9 @@ APT_PKGS=()
 SNAP_LINES=() # each entry is full "pkg [flags]"
 FLAT_LINES=() # each entry is full "app.id [flags]"
 DEV_LINES=()  # each entry is a toolchain name: rust | go | node
+FONT_LINES=() # each entry is a Nerd Fonts release name, e.g. JetBrainsMono
+APT_SKIPPED=() # apt packages not present in any configured repo
+APT_FAILED=()  # apt packages whose install command failed
 
 # Strip comments and blank lines; keep manager + remainder
 while IFS= read -r raw; do
@@ -123,6 +130,7 @@ while IFS= read -r raw; do
     snap) [ -n "$rest" ] && SNAP_LINES+=("$rest") ;;
     flat) [ -n "$rest" ] && FLAT_LINES+=("$rest") ;;
     dev) [ -n "$rest" ] && DEV_LINES+=("$rest") ;;
+    font) [ -n "$rest" ] && FONT_LINES+=("$rest") ;;
     *) warn "Unknown manager '$manager' in line: $raw" ;;
     esac
 done <"$PKG_FILE"
@@ -130,6 +138,13 @@ done <"$PKG_FILE"
 # ---------- Helpers: installed checks ----------
 apt_installed() {
     dpkg -s "$1" >/dev/null 2>&1
+}
+
+# Whether the package exists in any configured repo on this release. Guards the
+# install loop: 'apt-get install' on an unknown package is a hard error, and
+# under 'set -e' that would abort the whole bootstrap over one missing name.
+apt_available() {
+    apt-cache show "$1" >/dev/null 2>&1
 }
 
 snap_installed() {
@@ -217,8 +232,10 @@ install_neovim() {
     esac
 
     # Latest stable release tag, e.g. v0.12.3 (excludes nightly/prereleases).
+    # '|| true': grep -m1 closes the pipe early, so curl exits 23 (SIGPIPE) and
+    # pipefail would otherwise abort the whole script. Empty means failure.
     want="$(curl -fsSL https://api.github.com/repos/neovim/neovim/releases/latest 2>/dev/null |
-        grep -m1 '"tag_name"' | sed -E 's/.*"(v[0-9.]+)".*/\1/')"
+        grep -m1 '"tag_name"' | sed -E 's/.*"(v[0-9.]+)".*/\1/' || true)"
     if [ -z "$want" ]; then
         warn "dev: could not determine latest Neovim version (offline/rate-limited?); skipping neovim"
         return
@@ -260,6 +277,236 @@ install_claude() {
     run "curl -fsSL https://claude.ai/install.sh | bash"
 }
 
+install_lazygit() {
+    local arch lg_arch want current tarball url
+
+    # Not in the Ubuntu archive on any current release, so take the upstream
+    # release binary rather than dropping the tool.
+    arch="$(dpkg --print-architecture 2>/dev/null || echo amd64)" # amd64 | arm64
+    case "$arch" in
+    amd64) lg_arch="x86_64" ;;
+    arm64) lg_arch="arm64" ;;
+    *)
+        warn "dev: unsupported arch '$arch' for lazygit; skipping"
+        return
+        ;;
+    esac
+
+    # Tag is vX.Y.Z but the asset name drops the leading 'v'.
+    want="$(curl -fsSL https://api.github.com/repos/jesseduffield/lazygit/releases/latest 2>/dev/null |
+        grep -m1 '"tag_name"' | sed -E 's/.*"v?([0-9.]+)".*/\1/' || true)"
+    if [ -z "$want" ]; then
+        warn "dev: could not determine latest lazygit version (offline/rate-limited?); skipping lazygit"
+        return
+    fi
+
+    if command -v lazygit >/dev/null 2>&1; then
+        # 'head -1': the output also ends with 'git version=X.Y.Z', which the
+        # pattern would otherwise pick up alongside lazygit's own version.
+        current="$(lazygit --version 2>/dev/null | grep -oE 'version=[0-9.]+' | head -1 | cut -d= -f2)"
+        if [ "$current" = "$want" ]; then
+            ok "dev: lazygit already installed ($current)"
+            return
+        fi
+        info "dev: updating lazygit ($current -> $want)"
+    else
+        info "dev: installing lazygit $want"
+    fi
+
+    tarball="lazygit_${want}_linux_${lg_arch}.tar.gz"
+    url="https://github.com/jesseduffield/lazygit/releases/download/v${want}/${tarball}"
+    run "curl -fsSL '$url' -o '/tmp/${tarball}'"
+    run "sudo tar -C /usr/local/bin -xzf '/tmp/${tarball}' lazygit"
+    run "rm -f '/tmp/${tarball}'"
+}
+
+install_glow() {
+    local arch want current deb url
+
+    # Also absent from the Ubuntu archive. Upstream ships a .deb, so this stays
+    # dpkg-managed rather than a loose binary in /usr/local/bin.
+    arch="$(dpkg --print-architecture 2>/dev/null || echo amd64)" # amd64 | arm64
+    case "$arch" in
+    amd64 | arm64) ;;
+    *)
+        warn "dev: unsupported arch '$arch' for glow; skipping"
+        return
+        ;;
+    esac
+
+    want="$(curl -fsSL https://api.github.com/repos/charmbracelet/glow/releases/latest 2>/dev/null |
+        grep -m1 '"tag_name"' | sed -E 's/.*"v?([0-9.]+)".*/\1/' || true)"
+    if [ -z "$want" ]; then
+        warn "dev: could not determine latest glow version (offline/rate-limited?); skipping glow"
+        return
+    fi
+
+    current="$(dpkg-query -W -f='${Version}' glow 2>/dev/null || true)"
+    if [ "$current" = "$want" ]; then
+        ok "dev: glow already installed ($current)"
+        return
+    fi
+    if [ -n "$current" ]; then
+        info "dev: updating glow ($current -> $want)"
+    else
+        info "dev: installing glow $want"
+    fi
+
+    deb="glow_${want}_${arch}.deb"
+    url="https://github.com/charmbracelet/glow/releases/download/v${want}/${deb}"
+    run "curl -fsSL '$url' -o '/tmp/${deb}'"
+    run "sudo apt-get install -y '/tmp/${deb}'"
+    run "rm -f '/tmp/${deb}'"
+}
+
+install_wezterm() {
+    local arch ubuntu_ver deb url sha_url want_sha stamp_dir stamp tmp new_ver cur_ver
+
+    # A GUI terminal inside WSL is pointless: the Windows-side WezTerm already
+    # attaches to this distro via its launch_menu entry.
+    if [ $WSL -eq 1 ]; then
+        warn "dev: skipping wezterm on WSL (use the Windows WezTerm; see wezterm/wezterm.lua)"
+        return
+    fi
+
+    # Upstream's last stable tag is 20240203 (Feb 2024) and the apt repo still
+    # serves it, so 'nightly' is the only live channel -- it rebuilds daily.
+    # WezTerm is absent from the Ubuntu archive entirely, and the Flatpak build
+    # is sandboxed, so a .deb straight from the release is the way in.
+    arch="$(dpkg --print-architecture 2>/dev/null || echo amd64)" # amd64 | arm64
+    ubuntu_ver="$(. /etc/os-release 2>/dev/null && printf "%s" "${VERSION_ID:-}")"
+
+    if [ "$arch" = "arm64" ]; then
+        deb="wezterm-nightly.Ubuntu${ubuntu_ver}.arm64.deb"
+    else
+        deb="wezterm-nightly.Ubuntu${ubuntu_ver}.deb"
+    fi
+    url="https://github.com/wezterm/wezterm/releases/download/nightly/${deb}"
+
+    # Prefer the build matching this release; fall back to the 22.04 one, whose
+    # deps (libc6 >= 2.35, libssl3) resolve on anything newer.
+    if ! curl -fsSLI "$url" >/dev/null 2>&1; then
+        if [ "$arch" = "arm64" ]; then
+            deb="wezterm-nightly.Ubuntu22.04.arm64.deb"
+        else
+            deb="wezterm-nightly.Ubuntu22.04.deb"
+        fi
+        url="https://github.com/wezterm/wezterm/releases/download/nightly/${deb}"
+        if ! curl -fsSLI "$url" >/dev/null 2>&1; then
+            warn "dev: no wezterm nightly build for Ubuntu ${ubuntu_ver} ($arch); skipping wezterm"
+            return
+        fi
+        warn "dev: no wezterm build for Ubuntu ${ubuntu_ver}; using the 22.04 one"
+    fi
+
+    # The rolling 'nightly' tag carries no version in the URL, so compare the
+    # checksum sidecar against a stamp to avoid re-downloading ~36MB every run.
+    # arm64 debs ship without a .sha256, hence the empty-want_sha path below.
+    sha_url="${url}.sha256"
+    want_sha="$(curl -fsSL "$sha_url" 2>/dev/null | awk '{print $1}')"
+    stamp_dir="${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles"
+    stamp="$stamp_dir/wezterm-nightly.sha256"
+
+    if command -v wezterm >/dev/null 2>&1 && [ -n "$want_sha" ] && [ -f "$stamp" ] &&
+        [ "$(cat "$stamp")" = "$want_sha" ]; then
+        ok "dev: wezterm already up to date ($(wezterm --version 2>/dev/null))"
+        return
+    fi
+
+    if [ $DRY_RUN -eq 1 ]; then
+        echo "• curl -fsSL '$url' -o '/tmp/${deb}'"
+        echo "• sudo apt-get install -y '/tmp/${deb}'"
+        return
+    fi
+
+    info "dev: fetching wezterm nightly ($deb)"
+    tmp="/tmp/${deb}"
+    if ! curl -fsSL "$url" -o "$tmp"; then
+        warn "dev: wezterm download failed (offline?); skipping wezterm"
+        return
+    fi
+
+    if [ -n "$want_sha" ] && ! printf "%s  %s\n" "$want_sha" "$tmp" | sha256sum -c - >/dev/null 2>&1; then
+        err "dev: wezterm checksum mismatch for $deb; refusing to install"
+        rm -f "$tmp"
+        return
+    fi
+
+    new_ver="$(dpkg-deb -f "$tmp" Version 2>/dev/null)"
+    cur_ver="$(dpkg-query -W -f='${Version}' wezterm-nightly 2>/dev/null || true)"
+    if [ -n "$new_ver" ] && [ "$new_ver" = "$cur_ver" ]; then
+        ok "dev: wezterm already installed ($cur_ver)"
+        mkdir -p "$stamp_dir" && printf "%s\n" "$want_sha" >"$stamp"
+        rm -f "$tmp"
+        return
+    fi
+
+    # wezterm-nightly declares Conflicts: wezterm, so the frozen stable package
+    # has to go first if it was ever installed.
+    if dpkg -s wezterm >/dev/null 2>&1; then
+        info "dev: removing stale stable wezterm (replaced by nightly)"
+        sudo apt-get remove -y wezterm
+    fi
+
+    if [ -n "$cur_ver" ]; then
+        info "dev: updating wezterm ($cur_ver -> $new_ver)"
+    else
+        info "dev: installing wezterm $new_ver"
+    fi
+    sudo apt-get install -y "$tmp"
+    mkdir -p "$stamp_dir" && printf "%s\n" "$want_sha" >"$stamp"
+    rm -f "$tmp"
+}
+
+# ---------- Nerd Font installer (idempotent) ----------
+# Installs per-user into ~/.local/share/fonts so no sudo is needed. Only the
+# non-Mono "<Name> Nerd Font" faces are unpacked; those TTFs register under both
+# "JetBrainsMono Nerd Font" and the short "JetBrainsMono NF" alias that
+# wezterm/wezterm.lua asks for.
+install_nerdfont() {
+    local name want current font_dir stamp tarball url
+
+    # Fonts are a GUI concern; under WSL the Windows host terminal supplies them.
+    if [ $WSL -eq 1 ]; then
+        warn "font: skipping $1 on WSL (install it on the Windows side instead)"
+        return
+    fi
+
+    name="$1"
+    # '|| true' for the same SIGPIPE reason as install_neovim above.
+    want="$(curl -fsSL https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest 2>/dev/null |
+        grep -m1 '"tag_name"' | sed -E 's/.*"(v[0-9.]+)".*/\1/' || true)"
+    if [ -z "$want" ]; then
+        warn "font: could not determine latest Nerd Fonts version (offline/rate-limited?); skipping $name"
+        return
+    fi
+
+    font_dir="${XDG_DATA_HOME:-$HOME/.local/share}/fonts/NerdFonts/$name"
+    stamp="$font_dir/.nerd-fonts-version"
+    if [ -f "$stamp" ]; then
+        current="$(cat "$stamp")"
+        if [ "$current" = "$want" ]; then
+            ok "font: $name Nerd Font already installed ($current)"
+            return
+        fi
+        info "font: updating $name Nerd Font ($current -> $want)"
+    else
+        info "font: installing $name Nerd Font $want"
+    fi
+
+    tarball="${name}.tar.xz"
+    url="https://github.com/ryanoasis/nerd-fonts/releases/download/${want}/${tarball}"
+    run "curl -fsSL '$url' -o '/tmp/${tarball}'"
+    run "rm -rf '$font_dir'"
+    run "mkdir -p '$font_dir'"
+    # The trailing '-' anchors this to the plain NF faces, excluding the
+    # NerdFontMono / NerdFontPropo / NL variants in the same archive.
+    run "tar -C '$font_dir' -xJf '/tmp/${tarball}' --wildcards '${name}NerdFont-*.ttf'"
+    run "rm -f '/tmp/${tarball}'"
+    run "printf '%s\\n' '$want' >'$stamp'"
+    run "fc-cache -f '$font_dir'"
+}
+
 # ---------- APT installs ----------
 if [ "${#APT_PKGS[@]}" -gt 0 ]; then
     info "Preparing apt..."
@@ -272,9 +519,16 @@ if [ "${#APT_PKGS[@]}" -gt 0 ]; then
     for pkg in "${APT_PKGS[@]}"; do
         if apt_installed "$pkg"; then
             ok "apt: $pkg already installed"
+        elif ! apt_available "$pkg"; then
+            warn "apt: $pkg not available on this release; skipping"
+            APT_SKIPPED+=("$pkg")
         else
             info "apt: installing $pkg"
-            run "sudo apt-get install -y '$pkg'"
+            # Non-fatal: a single bad package must not strand the dev/font steps.
+            if ! run "sudo apt-get install -y '$pkg'"; then
+                warn "apt: $pkg failed to install; continuing"
+                APT_FAILED+=("$pkg")
+            fi
         fi
     done
 fi
@@ -358,10 +612,28 @@ if [ "${#DEV_LINES[@]}" -gt 0 ]; then
         node) install_node ;;
         neovim) install_neovim ;;
         claude) install_claude ;;
+        wezterm) install_wezterm ;;
+        lazygit) install_lazygit ;;
+        glow) install_glow ;;
         *) warn "Unknown dev tool '$tool' in line: dev $line" ;;
         esac
     done
     warn "Dev toolchains: open a new shell (or 'source ~/.zshrc') to pick up PATH changes."
+fi
+
+# ---------- FONTS ----------
+if [ "${#FONT_LINES[@]}" -gt 0 ]; then
+    info "Setting up fonts..."
+    for line in "${FONT_LINES[@]}"; do
+        install_nerdfont "$(printf "%s" "$line" | awk '{print $1}')"
+    done
+fi
+
+if [ "${#APT_SKIPPED[@]}" -gt 0 ]; then
+    warn "Unavailable on this release, not installed: ${APT_SKIPPED[*]}"
+fi
+if [ "${#APT_FAILED[@]}" -gt 0 ]; then
+    warn "Failed to install: ${APT_FAILED[*]}"
 fi
 
 ok "Install complete."

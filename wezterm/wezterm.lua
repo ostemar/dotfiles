@@ -37,7 +37,8 @@ if is_windows then
 		{ label = "cmd", args = { "cmd.exe" } },
 	}
 elseif is_linux then
-	config.default_prog = { "/usr/bin/bash", "-l" }
+	-- No default_prog: WezTerm spawns the login shell from /etc/passwd, which
+	-- scripts/setup.sh sets to zsh. Hardcoding bash here skipped .zshrc and p10k.
 	-- config.enable_wayland = true  -- enable if you run Wayland; comment out on issues
 end
 
