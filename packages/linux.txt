@@ -18,7 +18,11 @@ apt git-delta
 apt zoxide
 apt eza
 apt gh
-apt tree-sitter-cli
+# tree-sitter-cli deliberately NOT from apt: Mason installs its own copy and
+# prepends ~/.local/share/nvim/mason/bin to nvim's PATH, so the apt binary is
+# never the one nvim uses -- and noble ships 0.20.8, below the 0.26.1 minimum
+# nvim-treesitter (main branch) requires. It also drags in ~1.7GB of deps
+# (emscripten, llvm-15, clang-15, nodejs). Managed via nvim/lua/plugins/mason.lua.
 apt ffmpeg
 apt tmux
 apt libdbus-1-dev
