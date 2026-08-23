@@ -229,16 +229,20 @@ if [ -e "$BAT_SRC" ]; then
     info "Linking Bat config (top-level):"
     link_path "$BAT_SRC" "$BAT_DST"
 
-    # Rebuild bat cache to register the new theme
-    if command -v bat >/dev/null 2>&1; then
+    # Rebuild bat cache to register the new theme. Debian/Ubuntu ship the binary
+    # as 'batcat' (the name 'bat' collides with another package) and zsh/.zshrc
+    # only aliases it for interactive shells, which this script is not -- so
+    # resolve the real binary rather than assuming it is called 'bat'.
+    BAT_BIN="$(command -v bat || command -v batcat || true)"
+    if [ -n "$BAT_BIN" ]; then
         if [ $DRY_RUN -eq 1 ]; then
-            info "Would run: bat cache --build"
+            info "Would run: $BAT_BIN cache --build"
         else
             info "🔄 Rebuilding bat cache..."
-            bat cache --build >/dev/null 2>&1 && ok "Bat cache rebuilt" || warn "Failed to rebuild bat cache"
+            "$BAT_BIN" cache --build >/dev/null 2>&1 && ok "Bat cache rebuilt" || warn "Failed to rebuild bat cache"
         fi
     else
-        warn "bat not found in PATH. Install bat and run 'bat cache --build' to use the theme."
+        warn "bat/batcat not found in PATH. Install bat and run 'bat cache --build' to use the theme."
     fi
 fi
 
