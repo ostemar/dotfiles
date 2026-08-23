@@ -1,4 +1,20 @@
 # -----------------------------
+# R E P O  /  P P A  (third-party apt sources)
+# Applied before any apt install, so the 'apt' lines below can depend on them.
+# Written as deb822 .sources + a dearmored keyring under /etc/apt/keyrings.
+#   repo <name> url=<URI> suite=<suite> comps=<components> key=<keyurl> [arch=<arch>]
+#   ppa  <owner/name>
+# -----------------------------
+repo 1password url=https://downloads.1password.com/linux/debian/amd64 suite=stable comps=main key=https://downloads.1password.com/linux/keys/1password.asc arch=amd64
+# gh ships a much newer CLI than the Ubuntu archive (2.45.0 on noble).
+repo github-cli url=https://cli.github.com/packages suite=stable comps=main key=https://cli.github.com/packages/githubcli-archive-keyring.gpg arch=amd64
+# .NET SDK newer than the archive provides.
+ppa dotnet/backports
+
+# repo brave url=https://brave-browser-apt-release.s3.brave.com/ suite=stable comps=main key=https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg arch=amd64
+# apt brave-browser
+
+# -----------------------------
 # A P T  (CLI/system tooling)
 # -----------------------------
 apt build-essential
@@ -27,6 +43,11 @@ apt ffmpeg
 apt tmux
 apt libdbus-1-dev
 apt pkg-config
+
+# -- From third-party repos declared above -------------------------------
+apt 1password
+apt 1password-cli
+apt dotnet-sdk-9.0
 
 # -- Things to try out ------
 # apt stow
@@ -67,6 +88,12 @@ dev glow
 # Remote desktop client, matching 'winget RustDesk.RustDesk' on the Windows
 # side. Not in the Ubuntu archive; upstream .deb from GitHub releases.
 dev rustdesk
+# Also on Windows as 'winget Wilfred.difftastic'. Taken from the upstream
+# release rather than the community snap, which trails a version behind.
+dev difftastic
+# Chrome is NOT a 'repo' entry: its package rewrites its own .sources file from
+# /etc/cron.daily/google-chrome, so declaring it here too would duplicate it.
+dev chrome
 
 # -----------------------------
 # F O N T S  (Nerd Fonts, per-user into ~/.local/share/fonts)
@@ -88,10 +115,14 @@ font JetBrainsMono
 # Some need --classic confinement.
 # -----------------------------
 snap code --classic
+# Mirroring the Windows list: JetBrains.Rider, Spotify.Spotify, and pwsh (which
+# this repo already ships a profile and Oh My Posh theme for).
+snap rider --classic
+snap powershell --classic
+snap spotify
 # snap slack
 # snap postman
 # snap obsidian
-# snap spotify
 # snap docker   # alternative to apt install docker.io
 # snap chromium
 

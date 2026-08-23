@@ -9,6 +9,8 @@ set -euo pipefail
 #   flat <app.id> [flags]
 #   dev  <toolchain>
 #   font <NerdFontName>
+#   repo <name> url=<URI> suite=<s> comps=<c> key=<keyurl> [arch=<arch>]
+#   ppa  <owner/name>
 #
 # Examples:
 #   apt  ripgrep
@@ -17,6 +19,11 @@ set -euo pipefail
 #   flat com.brave.Browser
 #   dev  rust
 #   font JetBrainsMono
+#   repo brave url=https://brave-browser-apt-release.s3.brave.com/ suite=stable comps=main key=https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg
+#   ppa  dotnet/backports
+#
+# repo/ppa entries are applied before any apt install, so an 'apt <pkg>' line
+# may depend on a repo declared here.
 #
 # Safe to re-run. Skips already-installed packages.
 # -------------------------------------------------------
@@ -111,6 +118,8 @@ SNAP_LINES=() # each entry is full "pkg [flags]"
 FLAT_LINES=() # each entry is full "app.id [flags]"
 DEV_LINES=()  # each entry is a toolchain name: rust | go | node
 FONT_LINES=() # each entry is a Nerd Fonts release name, e.g. JetBrainsMono
+REPO_LINES=() # each entry is "name key=val key=val ..." for a third-party apt repo
+PPA_LINES=()  # each entry is a Launchpad PPA, e.g. dotnet/backports
 APT_SKIPPED=() # apt packages not present in any configured repo
 APT_FAILED=()  # apt packages whose install command failed
 
@@ -131,6 +140,8 @@ while IFS= read -r raw; do
     flat) [ -n "$rest" ] && FLAT_LINES+=("$rest") ;;
     dev) [ -n "$rest" ] && DEV_LINES+=("$rest") ;;
     font) [ -n "$rest" ] && FONT_LINES+=("$rest") ;;
+    repo) [ -n "$rest" ] && REPO_LINES+=("$rest") ;;
+    ppa) [ -n "$rest" ] && PPA_LINES+=("$rest") ;;
     *) warn "Unknown manager '$manager' in line: $raw" ;;
     esac
 done <"$PKG_FILE"
@@ -348,6 +359,76 @@ install_lazygit() {
     url="https://github.com/jesseduffield/lazygit/releases/download/v${want}/${tarball}"
     run "curl -fsSL '$url' -o '/tmp/${tarball}'"
     run "sudo tar -C /usr/local/bin -xzf '/tmp/${tarball}' lazygit"
+    run "rm -f '/tmp/${tarball}'"
+}
+
+install_chrome() {
+    local arch deb url
+
+    if [ $WSL -eq 1 ]; then
+        warn "dev: skipping google-chrome on WSL (use the Windows browser)"
+        return
+    fi
+
+    # Deliberately not a 'repo' entry: the chrome package ships
+    # /etc/cron.daily/google-chrome, which rewrites its own .sources file.
+    # Declaring the repo here as well would leave two entries fighting over it.
+    # Installing the .deb once is enough -- Google's repo then keeps it current
+    # through ordinary apt upgrades.
+    if dpkg -s google-chrome-stable >/dev/null 2>&1; then
+        ok "dev: google-chrome already installed ($(dpkg-query -W -f='${Version}' google-chrome-stable 2>/dev/null)); updates come from Google's own repo"
+        return
+    fi
+
+    arch="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
+    if [ "$arch" != "amd64" ]; then
+        warn "dev: google ships no linux .deb for '$arch'; skipping google-chrome"
+        return
+    fi
+
+    info "dev: installing google-chrome"
+    deb="google-chrome-stable_current_amd64.deb"
+    url="https://dl.google.com/linux/direct/${deb}"
+    run "curl -fsSL '$url' -o '/tmp/${deb}'"
+    run "sudo apt-get install -y '/tmp/${deb}'"
+    run "rm -f '/tmp/${deb}'"
+}
+
+install_difftastic() {
+    local arch dt_arch want current tarball url
+    arch="$(dpkg --print-architecture 2>/dev/null || echo amd64)" # amd64 | arm64
+    case "$arch" in
+    amd64) dt_arch="x86_64" ;;
+    arm64) dt_arch="aarch64" ;;
+    *)
+        warn "dev: unsupported arch '$arch' for difftastic; skipping"
+        return
+        ;;
+    esac
+
+    want="$(curl -fsSL https://api.github.com/repos/Wilfred/difftastic/releases/latest 2>/dev/null |
+        grep -m1 '"tag_name"' | sed -E 's/.*"v?([0-9.]+)".*/\1/' || true)"
+    if [ -z "$want" ]; then
+        warn "dev: could not determine latest difftastic version (offline/rate-limited?); skipping difftastic"
+        return
+    fi
+
+    # The binary is called 'difft', not 'difftastic'.
+    if command -v difft >/dev/null 2>&1; then
+        current="$(difft --version 2>/dev/null | awk '{print $2}')"
+        if [ "$current" = "$want" ]; then
+            ok "dev: difftastic already installed ($current)"
+            return
+        fi
+        info "dev: updating difftastic ($current -> $want)"
+    else
+        info "dev: installing difftastic $want"
+    fi
+
+    tarball="difft-${dt_arch}-unknown-linux-gnu.tar.gz"
+    url="https://github.com/Wilfred/difftastic/releases/download/${want}/${tarball}"
+    run "curl -fsSL '$url' -o '/tmp/${tarball}'"
+    run "sudo tar -C /usr/local/bin -xzf '/tmp/${tarball}' difft"
     run "rm -f '/tmp/${tarball}'"
 }
 
@@ -586,10 +667,109 @@ install_nerdfont() {
     run "fc-cache -f '$font_dir'"
 }
 
+# ---------- Third-party apt repos ----------
+# Declared in packages/linux.txt as:
+#   repo <name> url=<URI> suite=<suite> comps=<components> key=<keyurl> [arch=<arch>]
+# Writes a deb822 .sources file plus a dearmored keyring, matching the format
+# Ubuntu itself now uses. Re-running is a no-op once the files match.
+APT_NEEDS_UPDATE=0
+
+install_repo() {
+    local line="$1" name url suite comps key arch tok k v
+    name="$(printf "%s" "$line" | awk '{print $1}')"
+    url=""; suite=""; comps="main"; key=""; arch=""
+
+    for tok in $(printf "%s" "$line" | cut -s -d' ' -f2-); do
+        k="${tok%%=*}"; v="${tok#*=}"
+        case "$k" in
+        url) url="$v" ;;
+        suite) suite="$v" ;;
+        comps | components) comps="$v" ;;
+        key) key="$v" ;;
+        arch) arch="$v" ;;
+        *) warn "repo $name: unknown field '$k'" ;;
+        esac
+    done
+
+    if [ -z "$url" ] || [ -z "$suite" ] || [ -z "$key" ]; then
+        err "repo $name: url=, suite= and key= are all required; skipping"
+        return
+    fi
+
+    local keyring="/etc/apt/keyrings/${name}.gpg"
+    local srcfile="/etc/apt/sources.list.d/${name}.sources"
+    local body
+    body="Types: deb
+URIs: ${url}
+Suites: ${suite}
+Components: ${comps}"
+    [ -n "$arch" ] && body="${body}
+Architectures: ${arch}"
+    body="${body}
+Signed-By: ${keyring}"
+
+    if [ -f "$srcfile" ] && [ -s "$keyring" ] && [ "$(cat "$srcfile")" = "$body" ]; then
+        ok "repo: $name already configured"
+        return
+    fi
+
+    info "repo: configuring $name"
+    if [ $DRY_RUN -eq 1 ]; then
+        echo "• curl -fsSL '$key' | sudo gpg --dearmor -o '$keyring'"
+        echo "• write $srcfile"
+        APT_NEEDS_UPDATE=1
+        return
+    fi
+
+    sudo install -d -m 0755 /etc/apt/keyrings
+    # --yes so a re-run overwrites an existing keyring without prompting.
+    # gpg --dearmor passes through already-binary keys unchanged.
+    if ! curl -fsSL "$key" | sudo gpg --dearmor --yes -o "$keyring"; then
+        err "repo $name: could not fetch/dearmor key from $key; skipping"
+        return
+    fi
+    sudo chmod 0644 "$keyring"
+    printf "%s\n" "$body" | sudo tee "$srcfile" >/dev/null
+    APT_NEEDS_UPDATE=1
+}
+
+install_ppa() {
+    local ppa="$1"
+    # add-apt-repository is idempotent and handles the Launchpad key itself.
+    if grep -rqs "ppa.launchpadcontent.net/${ppa}/" /etc/apt/sources.list.d/ 2>/dev/null; then
+        ok "ppa: $ppa already configured"
+        return
+    fi
+    if ! command -v add-apt-repository >/dev/null 2>&1; then
+        info "installing software-properties-common (for add-apt-repository)"
+        run "sudo apt-get install -y software-properties-common"
+    fi
+    info "ppa: adding $ppa"
+    run "sudo add-apt-repository -y 'ppa:${ppa}'"
+    APT_NEEDS_UPDATE=1
+}
+
+APT_INDEX_FRESH=0
+if [ "${#REPO_LINES[@]}" -gt 0 ] || [ "${#PPA_LINES[@]}" -gt 0 ]; then
+    info "Configuring apt repos..."
+    for line in "${REPO_LINES[@]}"; do install_repo "$line"; done
+    for line in "${PPA_LINES[@]}"; do install_ppa "$(printf "%s" "$line" | awk '{print $1}')"; done
+
+    # Refresh once here so newly added repos are visible to the installs below.
+    if [ $APT_NEEDS_UPDATE -eq 1 ]; then
+        info "Refreshing apt index (repos changed)"
+        run "sudo apt-get update -y"
+        APT_INDEX_FRESH=1
+    fi
+fi
+
 # ---------- APT installs ----------
 if [ "${#APT_PKGS[@]}" -gt 0 ]; then
     info "Preparing apt..."
-    if [ $DRY_RUN -eq 0 ]; then
+    # Skip the refresh if the repo step above already did one.
+    if [ $APT_INDEX_FRESH -eq 1 ]; then
+        ok "apt: index already refreshed"
+    elif [ $DRY_RUN -eq 0 ]; then
         sudo apt-get update -y
     else
         echo "• sudo apt-get update -y"
@@ -695,6 +875,8 @@ if [ "${#DEV_LINES[@]}" -gt 0 ]; then
         lazygit) install_lazygit ;;
         glow) install_glow ;;
         rustdesk) install_rustdesk ;;
+        difftastic) install_difftastic ;;
+        chrome) install_chrome ;;
         *) warn "Unknown dev tool '$tool' in line: dev $line" ;;
         esac
     done

@@ -138,6 +138,8 @@ Then run:
 Edit `packages/linux.txt` using the format:
 
 ```
+repo name url=... suite=... comps=... key=...   # Third-party apt source
+ppa  owner/name             # Launchpad PPA
 apt  package-name           # APT packages
 snap package-name --classic # Snap packages (skipped on WSL)
 flat app.id                 # Flatpak apps (skipped on WSL)
@@ -147,6 +149,10 @@ dev  toolchain              # Upstream installers (rust, go, node, neovim,
 font NerdFontName           # Nerd Fonts into ~/.local/share/fonts
                             #   (skipped on WSL)
 ```
+
+`repo` and `ppa` entries are applied before any `apt` install, so an `apt` line
+may depend on a source declared above it. `repo` writes a deb822 `.sources` file
+plus a dearmored keyring under `/etc/apt/keyrings`.
 
 `dev` and `font` entries fetch the current upstream release and are idempotent:
 re-running `install_linux.sh` is also how you update them.

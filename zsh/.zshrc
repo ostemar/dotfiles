@@ -144,9 +144,10 @@ export NVM_DIR="$HOME/.nvm"
 [ -s "$HOME/.cargo/env" ] && \. "$HOME/.cargo/env"
 
 # Go - if installed via official tarball (/usr/local/go). Also expose ~/go/bin
-# for `go install`-ed binaries.
+# for `go install`-ed binaries. Prepended, not appended: /snap/bin sits early on
+# the default PATH, so appending let a snap-provided go shadow this one.
 if [[ -d /usr/local/go/bin ]] && [[ ":$PATH:" != *":/usr/local/go/bin:"* ]]; then
-  export PATH="$PATH:/usr/local/go/bin:$HOME/go/bin"
+  export PATH="/usr/local/go/bin:$HOME/go/bin:$PATH"
 fi
 
 # Add ~/.local/bin to PATH if not already there
