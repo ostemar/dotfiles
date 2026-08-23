@@ -70,7 +70,8 @@ apt dotnet-sdk-9.0
 #   dev wezterm-> nightly .deb from GitHub releases (skipped on WSL)
 #   dev lazygit-> upstream release tarball (/usr/local/bin)
 #   dev glow   -> upstream .deb (stays dpkg-managed)
-#   dev rustdesk-> upstream .deb (stays dpkg-managed, skipped on WSL)
+#   dev rustdesk-> upstream .deb (stays dpkg-managed, skipped on WSL);
+#                  x86_64 gets the Wayland unattended-access preview build
 # -----------------------------
 dev rust
 dev go
@@ -86,7 +87,10 @@ dev wezterm
 dev lazygit
 dev glow
 # Remote desktop client, matching 'winget RustDesk.RustDesk' on the Windows
-# side. Not in the Ubuntu archive; upstream .deb from GitHub releases.
+# side. Not in the Ubuntu archive; upstream .deb from GitHub releases. Stable
+# RustDesk cannot do unattended access on Wayland (Ubuntu's default session),
+# so on x86_64 this tracks upstream's preview build from the rolling 'nightly'
+# tag: https://rustdesk.com/blog/unattended-remote-access-wayland/
 dev rustdesk
 # Also on Windows as 'winget Wilfred.difftastic'. Taken from the upstream
 # release rather than the community snap, which trails a version behind.

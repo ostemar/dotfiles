@@ -415,7 +415,7 @@ install_difftastic() {
 
     # The binary is called 'difft', not 'difftastic'.
     if command -v difft >/dev/null 2>&1; then
-        current="$(difft --version 2>/dev/null | awk '{print $2}')"
+        current="$(difft --version 2>/dev/null | awk 'NR==1{print $2}')"
         if [ "$current" = "$want" ]; then
             ok "dev: difftastic already installed ($current)"
             return
@@ -454,6 +454,15 @@ install_rustdesk() {
         ;;
     esac
 
+    # Stable RustDesk cannot do unattended access on Wayland, which is what
+    # Ubuntu logs into by default, so x86_64 takes upstream's preview build
+    # instead: https://rustdesk.com/blog/unattended-remote-access-wayland/
+    # There is no aarch64 preview yet, so arm64 stays on the stable release.
+    if [ "$arch" = "amd64" ]; then
+        install_rustdesk_wayland
+        return
+    fi
+
     # Tags carry no leading 'v', and match the dpkg version directly.
     want="$(curl -fsSL https://api.github.com/repos/rustdesk/rustdesk/releases/latest 2>/dev/null |
         grep -m1 '"tag_name"' | sed -E 's/.*"v?([0-9.]+)".*/\1/' || true)"
@@ -478,6 +487,77 @@ install_rustdesk() {
     run "curl -fsSL '$url' -o '/tmp/${deb}'"
     run "sudo apt-get install -y '/tmp/${deb}'"
     run "rm -f '/tmp/${deb}'"
+}
+
+install_rustdesk_wayland() {
+    local meta asset deb url built current stamp_dir stamp tmp
+
+    # The preview ships as its own 'rustdesk-unattended-wayland' package that
+    # Conflicts/Replaces/Provides 'rustdesk', and it is published only under the
+    # rolling 'nightly' tag -- so ask the API for the asset rather than guessing
+    # a filename: the version in the name moves, and so does the build behind it.
+    meta="$(curl -fsSL https://api.github.com/repos/rustdesk/rustdesk/releases/tags/nightly 2>/dev/null || true)"
+    asset="$(printf "%s\n" "$meta" | awk -F'"' '
+        /"name": "rustdesk-unattended-wayland-.*-x86_64\.deb"/ { hit = 1; name = $4 }
+        hit && /"updated_at":/ { updated = $4 }
+        hit && /"browser_download_url":/ { print name, $4, updated; exit }')"
+    deb="$(printf "%s" "$asset" | awk '{print $1}')"
+    url="$(printf "%s" "$asset" | awk '{print $2}')"
+    built="$(printf "%s" "$asset" | awk '{print $3}')"
+    if [ -z "$url" ]; then
+        warn "dev: no rustdesk Wayland preview asset found (offline/rate-limited?); skipping rustdesk"
+        return
+    fi
+
+    # Every rebuild of the rolling tag keeps the same package version, so the
+    # asset's upload time is the only thing that moves -- stamp it, the way the
+    # wezterm nightly stamps its checksum, to avoid re-downloading ~23MB a run.
+    stamp_dir="${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles"
+    stamp="$stamp_dir/rustdesk-unattended-wayland.stamp"
+    current="$(dpkg-query -W -f='${Version}' rustdesk-unattended-wayland 2>/dev/null || true)"
+    if [ -n "$current" ] && [ -f "$stamp" ] && [ "$(cat "$stamp")" = "$built" ]; then
+        ok "dev: rustdesk Wayland preview already up to date ($current, built $built)"
+        return
+    fi
+
+    if [ $DRY_RUN -eq 1 ]; then
+        echo "• curl -fsSL '$url' -o '/tmp/${deb}'"
+        if dpkg -s rustdesk >/dev/null 2>&1; then
+            echo "• sudo apt-get remove -y rustdesk"
+        fi
+        echo "• sudo apt-get install -y '/tmp/${deb}'"
+        return
+    fi
+
+    if [ -n "$current" ]; then
+        info "dev: refreshing the rustdesk Wayland preview ($current, built $built)"
+    else
+        info "dev: installing the rustdesk Wayland preview ($deb)"
+    fi
+
+    tmp="/tmp/${deb}"
+    if ! curl -fsSL "$url" -o "$tmp"; then
+        warn "dev: rustdesk Wayland preview download failed (offline?); skipping rustdesk"
+        return
+    fi
+
+    # 'remove', not purge: /root/.config/rustdesk holds the ID and permanent
+    # password the service authenticates unattended sessions with.
+    if dpkg -s rustdesk >/dev/null 2>&1; then
+        info "dev: removing the stable rustdesk (replaced by the Wayland preview)"
+        sudo apt-get remove -y rustdesk
+    fi
+    sudo apt-get install -y "$tmp"
+    rm -f "$tmp"
+
+    # The postinst enables and starts rustdesk.service itself, but that raced
+    # with the removal above and left the unit disabled; unattended access needs
+    # the root service up before anyone has logged in, so make it stick.
+    if command -v systemctl >/dev/null 2>&1 && ! sudo systemctl enable --now rustdesk; then
+        warn "dev: could not enable rustdesk.service -- unattended access needs it running"
+    fi
+
+    mkdir -p "$stamp_dir" && printf "%s\n" "$built" >"$stamp"
 }
 
 install_glow() {
