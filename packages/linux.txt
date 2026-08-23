@@ -10,9 +10,11 @@ repo 1password url=https://downloads.1password.com/linux/debian/amd64 suite=stab
 repo github-cli url=https://cli.github.com/packages suite=stable comps=main key=https://cli.github.com/packages/githubcli-archive-keyring.gpg arch=amd64
 # .NET SDK newer than the archive provides.
 ppa dotnet/backports
-
-# repo brave url=https://brave-browser-apt-release.s3.brave.com/ suite=stable comps=main key=https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg arch=amd64
-# apt brave-browser
+# Brave, from Brave's own repo rather than Flathub or snap: 1Password will not
+# connect to a sandboxed browser, and losing that costs unlock-with-system-auth
+# and desktop-backed autofill. The repo serves arm64 too, but arch is pinned to
+# match the other entries here and keep apt from indexing a slice we never use.
+repo brave url=https://brave-browser-apt-release.s3.brave.com/ suite=stable comps=main key=https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg arch=amd64
 
 # -----------------------------
 # A P T  (CLI/system tooling)
@@ -47,6 +49,7 @@ apt pkg-config
 # -- From third-party repos declared above -------------------------------
 apt 1password
 apt 1password-cli
+apt brave-browser
 apt dotnet-sdk-9.0
 
 # -- Things to try out ------
@@ -135,7 +138,7 @@ snap spotify
 # (skipped on WSL automatically)
 # Use 'flat <app.id>' (Flathub ID).
 # -----------------------------
-# flat com.brave.Browser
+# flat com.brave.Browser   # deliberately unused -- see the brave repo entry at the top
 # flat com.visualstudio.code
 # flat org.telegram.desktop
 # flat md.obsidian.Obsidian
