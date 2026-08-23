@@ -160,10 +160,23 @@ flat_installed() {
 # These use the canonical upstream installers rather than apt so the versions
 # stay current and self-updating. PATH wiring is handled in zsh/.zshrc.
 install_rust() {
-    if command -v rustc >/dev/null 2>&1 || [ -x "$HOME/.cargo/bin/rustc" ]; then
-        ok "dev: rust already installed ($("${HOME}/.cargo/bin/rustc" --version 2>/dev/null || rustc --version 2>/dev/null))"
+    local rustup_bin="$HOME/.cargo/bin/rustup"
+    [ -x "$rustup_bin" ] || rustup_bin="$(command -v rustup 2>/dev/null || true)"
+
+    if [ -n "$rustup_bin" ] && [ -x "$rustup_bin" ]; then
+        # 'rustup update' refreshes rustup itself plus every installed toolchain,
+        # and is a no-op when they are already current.
+        info "dev: updating rust toolchains via rustup"
+        run "'$rustup_bin' update"
+        ok "dev: rust $("${HOME}/.cargo/bin/rustc" --version 2>/dev/null || rustc --version 2>/dev/null)"
         return
     fi
+
+    if command -v rustc >/dev/null 2>&1; then
+        warn "dev: rustc present but not rustup-managed; leaving it alone"
+        return
+    fi
+
     info "dev: installing rust via rustup"
     # --no-modify-path: shell PATH is managed by zsh/.zshrc (sources ~/.cargo/env)
     run "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path"
@@ -198,25 +211,43 @@ install_go() {
 install_node() {
     local nvm_ver="v0.40.5"
     export NVM_DIR="$HOME/.nvm"
+    local have_nvm=""
     if [ -s "$NVM_DIR/nvm.sh" ]; then
-        ok "dev: nvm already installed"
+        # shellcheck disable=SC1091
+        have_nvm="v$(. "$NVM_DIR/nvm.sh" >/dev/null 2>&1 && nvm --version 2>/dev/null)"
+    fi
+
+    if [ "$have_nvm" = "$nvm_ver" ]; then
+        ok "dev: nvm already installed ($have_nvm)"
     else
-        info "dev: installing nvm $nvm_ver"
+        # The install script doubles as the upgrade path; safe to re-run.
+        if [ -n "$have_nvm" ] && [ "$have_nvm" != "v" ]; then
+            info "dev: updating nvm ($have_nvm -> $nvm_ver)"
+        else
+            info "dev: installing nvm $nvm_ver"
+        fi
         run "curl -fsSL 'https://raw.githubusercontent.com/nvm-sh/nvm/${nvm_ver}/install.sh' | bash"
     fi
+
     if [ $DRY_RUN -eq 1 ]; then
         echo "• nvm install --lts && nvm alias default 'lts/*'"
         return
     fi
+
     # shellcheck disable=SC1091
     . "$NVM_DIR/nvm.sh"
+
+    # 'nvm install --lts' is a no-op when the newest LTS is already present, and
+    # installs it when a new LTS line ships. Carry global packages across so an
+    # LTS bump doesn't silently drop them.
+    info "dev: installing/updating Node LTS via nvm"
     if nvm which default >/dev/null 2>&1; then
-        ok "dev: node already installed ($(node -v 2>/dev/null))"
+        nvm install --lts --reinstall-packages-from=default
     else
-        info "dev: installing Node LTS via nvm"
         nvm install --lts
-        nvm alias default 'lts/*'
     fi
+    nvm alias default 'lts/*'
+    ok "dev: node $(node -v 2>/dev/null) (default: $(nvm version default 2>/dev/null))"
 }
 
 install_neovim() {
