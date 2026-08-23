@@ -351,6 +351,54 @@ install_lazygit() {
     run "rm -f '/tmp/${tarball}'"
 }
 
+install_rustdesk() {
+    local arch rd_arch want current deb url
+
+    # GUI remote-desktop client; nothing to run against under WSL.
+    if [ $WSL -eq 1 ]; then
+        warn "dev: skipping rustdesk on WSL"
+        return
+    fi
+
+    # Not in the Ubuntu archive; upstream ships .debs, so this stays
+    # dpkg-managed. The plain asset is the Flutter build -- the '-sciter'
+    # variants are the legacy UI and are deliberately not used here.
+    arch="$(dpkg --print-architecture 2>/dev/null || echo amd64)" # amd64 | arm64
+    case "$arch" in
+    amd64) rd_arch="x86_64" ;;
+    arm64) rd_arch="aarch64" ;;
+    *)
+        warn "dev: unsupported arch '$arch' for rustdesk; skipping"
+        return
+        ;;
+    esac
+
+    # Tags carry no leading 'v', and match the dpkg version directly.
+    want="$(curl -fsSL https://api.github.com/repos/rustdesk/rustdesk/releases/latest 2>/dev/null |
+        grep -m1 '"tag_name"' | sed -E 's/.*"v?([0-9.]+)".*/\1/' || true)"
+    if [ -z "$want" ]; then
+        warn "dev: could not determine latest rustdesk version (offline/rate-limited?); skipping rustdesk"
+        return
+    fi
+
+    current="$(dpkg-query -W -f='${Version}' rustdesk 2>/dev/null || true)"
+    if [ "$current" = "$want" ]; then
+        ok "dev: rustdesk already installed ($current)"
+        return
+    fi
+    if [ -n "$current" ]; then
+        info "dev: updating rustdesk ($current -> $want)"
+    else
+        info "dev: installing rustdesk $want"
+    fi
+
+    deb="rustdesk-${want}-${rd_arch}.deb"
+    url="https://github.com/rustdesk/rustdesk/releases/download/${want}/${deb}"
+    run "curl -fsSL '$url' -o '/tmp/${deb}'"
+    run "sudo apt-get install -y '/tmp/${deb}'"
+    run "rm -f '/tmp/${deb}'"
+}
+
 install_glow() {
     local arch want current deb url
 
@@ -646,6 +694,7 @@ if [ "${#DEV_LINES[@]}" -gt 0 ]; then
         wezterm) install_wezterm ;;
         lazygit) install_lazygit ;;
         glow) install_glow ;;
+        rustdesk) install_rustdesk ;;
         *) warn "Unknown dev tool '$tool' in line: dev $line" ;;
         esac
     done
