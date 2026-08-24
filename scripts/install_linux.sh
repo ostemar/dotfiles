@@ -10,6 +10,7 @@ set -euo pipefail
 #   dev  <toolchain>
 #   font <NerdFontName>
 #   repo <name> url=<URI> suite=<s> comps=<c> key=<keyurl> [arch=<arch>]
+#   pin  <name> pkg=<glob> priority=<n> [origin=<host>] [release=<expr>]
 #   ppa  <owner/name>
 #
 # Examples:
@@ -20,10 +21,12 @@ set -euo pipefail
 #   dev  rust
 #   font JetBrainsMono
 #   repo brave url=https://brave-browser-apt-release.s3.brave.com/ suite=stable comps=main key=https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg
+#   pin  mozilla pkg=* origin=packages.mozilla.org priority=1000
 #   ppa  dotnet/backports
 #
-# repo/ppa entries are applied before any apt install, so an 'apt <pkg>' line
-# may depend on a repo declared here.
+# repo/pin/ppa entries are applied before any apt install, so an 'apt <pkg>'
+# line may depend on a repo declared here. 'pin' writes preferences.d files and
+# is what decides which repo wins when the same package exists in several.
 #
 # Safe to re-run. Skips already-installed packages.
 # -------------------------------------------------------
@@ -120,6 +123,7 @@ DEV_LINES=()  # each entry is a toolchain name: rust | go | node
 FONT_LINES=() # each entry is a Nerd Fonts release name, e.g. JetBrainsMono
 REPO_LINES=() # each entry is "name key=val key=val ..." for a third-party apt repo
 PPA_LINES=()  # each entry is a Launchpad PPA, e.g. dotnet/backports
+PIN_LINES=()  # each entry is "name key=val ..." for an apt preferences.d pin
 APT_SKIPPED=() # apt packages not present in any configured repo
 APT_FAILED=()  # apt packages whose install command failed
 
@@ -141,6 +145,7 @@ while IFS= read -r raw; do
     dev) [ -n "$rest" ] && DEV_LINES+=("$rest") ;;
     font) [ -n "$rest" ] && FONT_LINES+=("$rest") ;;
     repo) [ -n "$rest" ] && REPO_LINES+=("$rest") ;;
+    pin) [ -n "$rest" ] && PIN_LINES+=("$rest") ;;
     ppa) [ -n "$rest" ] && PPA_LINES+=("$rest") ;;
     *) warn "Unknown manager '$manager' in line: $raw" ;;
     esac
@@ -156,6 +161,34 @@ apt_installed() {
 # under 'set -e' that would abort the whole bootstrap over one missing name.
 apt_available() {
     apt-cache show "$1" >/dev/null 2>&1
+}
+
+# The version apt would install right now.
+apt_candidate() {
+    apt-cache policy "$1" 2>/dev/null | awk '/Candidate:/{print $2}'
+}
+
+# True when an explicit pin (priority >= 1000) selects a version other than the
+# one already installed. Without this an 'apt <pkg>' line is a no-op as soon as
+# *any* build of the package is present -- wrong for firefox, where Ubuntu
+# preinstalls a stub whose only job is to reinstall the snap.
+apt_pin_switch() {
+    local pol inst cand prio
+    pol="$(apt-cache policy "$1" 2>/dev/null)" || return 1
+    inst="$(printf "%s" "$pol" | awk '/Installed:/{print $2}')"
+    cand="$(printf "%s" "$pol" | awk '/Candidate:/{print $2}')"
+    if [ -z "$cand" ] || [ "$cand" = "(none)" ] || [ "$inst" = "(none)" ] ||
+        [ "$inst" = "$cand" ]; then
+        return 1
+    fi
+    # Priority of the candidate's own row in the version table. Scanning must
+    # start below 'Version table:' -- the 'Candidate: <ver>' header also holds a
+    # field equal to $cand, and matching that yields an empty priority.
+    prio="$(printf "%s" "$pol" | awk -v c="$cand" '
+        /Version table:/ { t = 1; next }
+        t && NF >= 2 && $(NF - 1) == c && $NF ~ /^-?[0-9]+$/ { print $NF; exit }')"
+    case "$prio" in '' | *[!0-9-]*) return 1 ;; esac
+    [ "$prio" -ge 1000 ]
 }
 
 snap_installed() {
@@ -829,11 +862,64 @@ install_ppa() {
     APT_NEEDS_UPDATE=1
 }
 
+# ---------- Apt pin preferences ----------
+# Declared in packages/linux.txt as:
+#   pin <name> pkg=<glob> priority=<n> [origin=<host>] [release=<expr>]
+# Writes /etc/apt/preferences.d/<name>. Needed whenever version order alone
+# picks the wrong package: see the firefox pins in packages/linux.txt, where
+# Ubuntu's stub carries an epoch that outranks Mozilla's real releases.
+install_pin() {
+    local line="$1" name pkg prio origin release tok k v target pinfile body
+    name="$(printf "%s" "$line" | awk '{print $1}')"
+    pkg="*"; prio=""; origin=""; release=""
+
+    # -f so a 'pkg=*' token is not pathname-expanded by the unquoted loop.
+    set -f
+    for tok in $(printf "%s" "$line" | cut -s -d' ' -f2-); do
+        k="${tok%%=*}"; v="${tok#*=}"
+        case "$k" in
+        pkg | package) pkg="$v" ;;
+        priority) prio="$v" ;;
+        origin) origin="$v" ;;
+        release) release="$v" ;;
+        *) warn "pin $name: unknown field '$k'" ;;
+        esac
+    done
+    set +f
+
+    if [ -z "$prio" ] || { [ -z "$origin" ] && [ -z "$release" ]; }; then
+        err "pin $name: priority= and one of origin=/release= are required; skipping"
+        return
+    fi
+
+    if [ -n "$origin" ]; then target="origin ${origin}"; else target="release ${release}"; fi
+
+    pinfile="/etc/apt/preferences.d/${name}"
+    body="Package: ${pkg}
+Pin: ${target}
+Pin-Priority: ${prio}"
+
+    if [ -f "$pinfile" ] && [ "$(cat "$pinfile")" = "$body" ]; then
+        ok "pin: $name already configured"
+        return
+    fi
+
+    info "pin: configuring $name ($pkg -> $prio)"
+    if [ $DRY_RUN -eq 1 ]; then
+        echo "• write $pinfile"
+        return
+    fi
+    sudo install -d -m 0755 /etc/apt/preferences.d
+    printf "%s\n" "$body" | sudo tee "$pinfile" >/dev/null
+}
+
 APT_INDEX_FRESH=0
-if [ "${#REPO_LINES[@]}" -gt 0 ] || [ "${#PPA_LINES[@]}" -gt 0 ]; then
+if [ "${#REPO_LINES[@]}" -gt 0 ] || [ "${#PPA_LINES[@]}" -gt 0 ] || [ "${#PIN_LINES[@]}" -gt 0 ]; then
     info "Configuring apt repos..."
     for line in "${REPO_LINES[@]}"; do install_repo "$line"; done
     for line in "${PPA_LINES[@]}"; do install_ppa "$(printf "%s" "$line" | awk '{print $1}')"; done
+    # Pins last: they only matter once the sources they refer to exist.
+    for line in "${PIN_LINES[@]}"; do install_pin "$line"; done
 
     # Refresh once here so newly added repos are visible to the installs below.
     if [ $APT_NEEDS_UPDATE -eq 1 ]; then
@@ -856,15 +942,25 @@ if [ "${#APT_PKGS[@]}" -gt 0 ]; then
     fi
 
     for pkg in "${APT_PKGS[@]}"; do
-        if apt_installed "$pkg"; then
+        if apt_installed "$pkg" && ! apt_pin_switch "$pkg"; then
             ok "apt: $pkg already installed"
         elif ! apt_available "$pkg"; then
             warn "apt: $pkg not available on this release; skipping"
             APT_SKIPPED+=("$pkg")
         else
-            info "apt: installing $pkg"
+            apt_flags=""
+            if apt_installed "$pkg"; then
+                # A pin picked a different build. It can sort *lower* than what
+                # is installed -- Ubuntu's firefox stub is 1:1snap1-0ubuntu5 and
+                # that epoch outranks Mozilla's 154.x -- so permit the apparent
+                # downgrade rather than having apt refuse the switch.
+                info "apt: switching $pkg to the pinned $(apt_candidate "$pkg")"
+                apt_flags="--allow-downgrades "
+            else
+                info "apt: installing $pkg"
+            fi
             # Non-fatal: a single bad package must not strand the dev/font steps.
-            if ! run "sudo apt-get install -y '$pkg'"; then
+            if ! run "sudo apt-get install -y ${apt_flags}'$pkg'"; then
                 warn "apt: $pkg failed to install; continuing"
                 APT_FAILED+=("$pkg")
             fi

@@ -3,6 +3,7 @@
 # Applied before any apt install, so the 'apt' lines below can depend on them.
 # Written as deb822 .sources + a dearmored keyring under /etc/apt/keyrings.
 #   repo <name> url=<URI> suite=<suite> comps=<components> key=<keyurl> [arch=<arch>]
+#   pin  <name> pkg=<glob> priority=<n> [origin=<host>] [release=<expr>]
 #   ppa  <owner/name>
 # -----------------------------
 repo 1password url=https://downloads.1password.com/linux/debian/amd64 suite=stable comps=main key=https://downloads.1password.com/linux/keys/1password.asc arch=amd64
@@ -15,6 +16,16 @@ ppa dotnet/backports
 # and desktop-backed autofill. The repo serves arm64 too, but arch is pinned to
 # match the other entries here and keep apt from indexing a slice we never use.
 repo brave url=https://brave-browser-apt-release.s3.brave.com/ suite=stable comps=main key=https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg arch=amd64
+# Firefox from Mozilla, not the Ubuntu archive: 'firefox' there is a stub whose
+# only job is to install the snap, and 1Password refuses to talk to a sandboxed
+# browser -- its native-messaging host sits in ~/.mozilla, which the snap cannot
+# read. The two pins below are what actually make the deb win.
+repo mozilla url=https://packages.mozilla.org/apt suite=mozilla comps=main key=https://packages.mozilla.org/apt/repo-signing-key.gpg arch=amd64
+pin mozilla pkg=* origin=packages.mozilla.org priority=1000
+# The stub is 1:1snap1-0ubuntu5 and that epoch sorts above Mozilla's 154.x, so
+# the priority pin alone loses on any machine where the stub is preinstalled.
+# -1 makes it uninstallable outright, including across release upgrades.
+pin firefox-nosnap pkg=firefox release=o=Ubuntu priority=-1
 
 # -----------------------------
 # A P T  (CLI/system tooling)
@@ -51,6 +62,13 @@ apt 1password
 apt 1password-cli
 apt brave-browser
 apt dotnet-sdk-9.0
+# Migrating an existing machine off the snap is NOT handled here: the snap keeps
+# its profile in ~/snap/firefox/common/.mozilla/firefox while the deb reads
+# ~/.mozilla/firefox. Copy it across with Firefox closed, then repoint the
+# [Install<HASH>] section of profiles.ini and installs.ini at the copied
+# profile. That hash is derived from the install path, so a fresh deb finds no
+# profile registered for itself and silently starts an empty one instead.
+apt firefox
 
 # -- Things to try out ------
 # apt stow
