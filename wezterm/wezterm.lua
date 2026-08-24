@@ -39,7 +39,16 @@ if is_windows then
 elseif is_linux then
 	-- No default_prog: WezTerm spawns the login shell from /etc/passwd, which
 	-- scripts/setup.sh sets to zsh. Hardcoding bash here skipped .zshrc and p10k.
-	-- config.enable_wayland = true  -- enable if you run Wayland; comment out on issues
+
+	-- enable_wayland defaults to true, so this is a native Wayland client. On GNOME
+	-- Wayland + NVIDIA the default OpenGL front end renders through NVIDIA's EGL and
+	-- can block in the present path when the compositor stops sending frame callbacks
+	-- (screen blank, occluded window). While blocked it can't answer Mutter's liveness
+	-- ping, so GNOME pops "WezTerm is not responding" the moment you click back in.
+	-- Vulkan sidesteps that path; if it still stalls, set enable_wayland = false to
+	-- fall back to XWayland.
+	config.front_end = "WebGpu"
+	config.webgpu_power_preference = "HighPerformance"
 end
 
 -- Leader for pane management (vim/tmux style): press Ctrl+Space, then the key.
