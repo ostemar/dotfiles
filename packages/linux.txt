@@ -26,6 +26,27 @@ pin mozilla pkg=* origin=packages.mozilla.org priority=1000
 # the priority pin alone loses on any machine where the stub is preinstalled.
 # -1 makes it uninstallable outright, including across release upgrades.
 pin firefox-nosnap pkg=firefox release=o=Ubuntu priority=-1
+# VS Code from Microsoft's repo rather than the snap. The snap is classic, so
+# this buys no sandbox escape -- it buys startup (no squashfs decompress on
+# cold launch), 'code' on PATH without the /snap/bin shim, and updates that
+# ride ordinary apt instead of a background refresh that nags to restart.
+# Settings survive the switch untouched: the classic snap already wrote to the
+# real ~/.config/Code and ~/.vscode.
+# Naming this repo 'vscode' is deliberate -- the deb's postinst registers the
+# same repo itself unless it finds an existing source pointing at
+# packages.microsoft.com/repos/code, and it writes to vscode.sources. Matching
+# both the name and the URI exactly is what keeps apt from listing it twice.
+repo vscode url=https://packages.microsoft.com/repos/code suite=stable comps=main key=https://packages.microsoft.com/keys/microsoft.asc arch=amd64
+# Spotify from Spotify's repo rather than the snap. This one is a real win:
+# the snap is strictly confined, so cold start pays AppArmor + portal setup on
+# top of squashfs, and playing local files needs a manual 'snap connect'.
+# Upstream ships the same version the snap does, so nothing is given up.
+# Spotify rotates this signing key every few years and publishes each one under
+# its own long key id, so the URL below goes stale rather than redirecting. When
+# apt reports NO_PUBKEY <id> for this repo, the fix is to point this line at
+# https://download.spotify.com/debian/pubkey_<id>.gpg; install_repo tracks the
+# key URL and refetches on its own from there.
+repo spotify url=https://repository.spotify.com suite=stable comps=non-free key=https://download.spotify.com/debian/pubkey_5384CE82BA52C83A.gpg arch=amd64
 
 # -----------------------------
 # A P T  (CLI/system tooling)
@@ -69,6 +90,8 @@ apt dotnet-sdk-9.0
 # profile. That hash is derived from the install path, so a fresh deb finds no
 # profile registered for itself and silently starts an empty one instead.
 apt firefox
+apt code
+apt spotify-client
 
 # -- Things to try out ------
 # apt stow
@@ -139,15 +162,15 @@ font JetBrainsMono
 # (skipped on WSL automatically)
 # Some need --classic confinement.
 # -----------------------------
-snap code --classic
-# Mirroring the Windows list: JetBrains.Rider, Spotify.Spotify, and pwsh (which
-# this repo already ships a profile and Oh My Posh theme for).
-snap rider --classic
+# Only strictly-confined snaps pay for AppArmor setup and portal round-trips on
+# every cold start; classic ones just pay squashfs. That is why 'code' moved to
+# the Microsoft repo for convenience but 'spotify' moved for speed -- see both
+# repo entries at the top. Rider left with them: the JetBrains IDEs are managed
+# by hand now, and Obsidian and Ghostty are gone outright (WezTerm covers the
+# terminal, see 'dev wezterm').
 snap powershell --classic
-snap spotify
 # snap slack
 # snap postman
-# snap obsidian
 # snap docker   # alternative to apt install docker.io
 # snap chromium
 
@@ -157,9 +180,9 @@ snap spotify
 # Use 'flat <app.id>' (Flathub ID).
 # -----------------------------
 # flat com.brave.Browser   # deliberately unused -- see the brave repo entry at the top
-# flat com.visualstudio.code
+# flat com.visualstudio.code    # deliberately unused -- see the vscode repo entry at the top
 # flat org.telegram.desktop
 # flat md.obsidian.Obsidian
 # flat com.getpostman.Postman
-# flat com.spotify.Client
+# flat com.spotify.Client       # deliberately unused -- see the spotify repo entry at the top
 # flat org.chromium.Chromium
