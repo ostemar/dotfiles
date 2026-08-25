@@ -317,6 +317,137 @@ install_msvc_cross() {
     [ "$DRY_RUN" -eq 1 ] || ok "dev: msvc-cross tools linked from $llvm_bin into ~/.local/bin"
 }
 
+# Google's Android SDK, into ~/Android/Sdk: the command-line tools first, then
+# the `android` CLI they carry for the platform, the build tools, platform-tools
+# (that is `adb`) and the NDK. Android Studio is the usual way to get all of this and is not
+# needed for any of it -- the build loop is entirely command line -- and nothing
+# else packages it: Ubuntu's own `android-sdk` trails several platform releases
+# and ships no NDK at all.
+#
+# The NDK version is pinned rather than tracked, and it is the one number here
+# worth arguing about. It has to match what a project builds against on every
+# other machine, or the same source is compiled by two toolchains and a link
+# error on one of them cannot be reproduced on the other. OBERTH's README sets
+# 28.2.13676358 on Windows; that is where this figure comes from and it does not
+# move on its own.
+#
+# The command-line tools themselves *are* tracked, install_go-style. Google
+# publishes repository2-3.xml, which names the current revision of
+# `cmdline-tools;latest` and the archive carrying it, so "latest" means here what
+# it means on their download page rather than a build number going stale in this
+# file.
+#
+# Two layout traps, and neither says what it is. The zip unpacks to a directory
+# called `cmdline-tools`, and where it has to end up is `cmdline-tools/latest`:
+# left as the archive writes it, the tools die with "Could not determine SDK
+# root", naming neither the directory nor the reason. They work that root out from
+# their own path -- two levels above `bin/` -- which is also why nothing here
+# exports ANDROID_HOME to tell them: the shell does that for everything
+# downstream, and this runs before there is a shell that has read it.
+#
+# **The packages are installed with `android sdk install`, not with
+# `sdkmanager`.** Every guide on the internet says sdkmanager, and it still
+# works, and as of command-line tools 23.0 it is a shim: it prints a deprecation
+# notice, downloads a *second* binary (the `android` CLI) on first use, unpacks
+# it, shows Google's terms, and only then does the thing asked of it. It also
+# answers `--licenses` with "no longer needed", so the incantation every guide
+# pairs it with is now a no-op. Going through the shim buys a warning on every
+# run and an interface that is scheduled to be removed; the `android` CLI beside
+# it in the same bin/ is what it forwards to.
+#
+# The package names differ between the two and the new spelling is the better
+# one: `platforms/android-36` where sdkmanager wanted `platforms;android-36`, so
+# a package name *is* its directory under the SDK root, which is what makes the
+# already-installed check below a plain `-d` test rather than a network query.
+install_android_sdk() {
+    local sdk="$HOME/Android/Sdk"
+    local ndk_version="28.2.13676358"
+    local manifest="https://dl.google.com/android/repository/repository2-3.xml"
+    local jdk="/usr/lib/jvm/java-17-openjdk-amd64"
+    local want zip current android pkg
+    local missing=()
+
+    # The SDK tools are Java programs, so they need a JVM before they can install
+    # anything. JDK 17 by preference rather than by requirement: it is the
+    # version the Gradle half is pinned to, and running both halves on one JDK is
+    # one less difference between them.
+    if [ -x "$jdk/bin/java" ]; then
+        export JAVA_HOME="$jdk"
+    elif command -v java >/dev/null 2>&1; then
+        warn "dev: no JDK 17 at $jdk; running the SDK tools on the default java (wants 'apt openjdk-17-jdk')"
+    else
+        warn "dev: no java on this machine; skipping android-sdk (needs 'apt openjdk-17-jdk')"
+        return
+    fi
+
+    read -r want zip <<<"$(curl -fsSL "$manifest" 2>/dev/null | awk '
+        /<remotePackage path="cmdline-tools;latest">/ { f = 1 }
+        f && /<major>/ { maj = $0; gsub(/[^0-9]/, "", maj) }
+        f && /<minor>/ { min = $0; gsub(/[^0-9]/, "", min) }
+        f && /commandlinetools-linux-/ {
+            url = $0; sub(/.*<url>/, "", url); sub(/<\/url>.*/, "", url)
+            print maj "." min " " url
+            exit
+        }')"
+    if [ -z "${want:-}" ] || [ -z "${zip:-}" ]; then
+        warn "dev: could not read the Android SDK manifest (offline?); skipping android-sdk"
+        return
+    fi
+
+    # Pkg.Revision in source.properties is what the installed copy calls itself,
+    # and it is the same "23.0" the manifest names, so the two compare directly.
+    current=""
+    if [ -x "$sdk/cmdline-tools/latest/bin/android" ]; then
+        current="$(sed -n 's/^Pkg\.Revision=//p' "$sdk/cmdline-tools/latest/source.properties" 2>/dev/null)"
+    fi
+
+    if [ "$current" = "$want" ]; then
+        ok "dev: android command-line tools already installed ($current)"
+    else
+        [ -n "$current" ] && info "dev: updating android command-line tools ($current -> $want)" ||
+            info "dev: installing android command-line tools $want"
+        run "rm -rf '/tmp/android-cmdline-tools'"
+        run "curl -fsSL 'https://dl.google.com/android/repository/$zip' -o '/tmp/$zip'"
+        run "mkdir -p '/tmp/android-cmdline-tools' '$sdk/cmdline-tools'"
+        run "unzip -q '/tmp/$zip' -d '/tmp/android-cmdline-tools'"
+        run "rm -rf '$sdk/cmdline-tools/latest'"
+        run "mv '/tmp/android-cmdline-tools/cmdline-tools' '$sdk/cmdline-tools/latest'"
+        run "rm -rf '/tmp/android-cmdline-tools' '/tmp/$zip'"
+    fi
+
+    android="$sdk/cmdline-tools/latest/bin/android"
+    if [ "$DRY_RUN" -eq 0 ] && [ ! -x "$android" ]; then
+        warn "dev: no android CLI at $android after unpacking; skipping the SDK packages"
+        return
+    fi
+
+    # Asked of the filesystem rather than of `android sdk list`, which is a
+    # network round trip to answer a question the directory layout already
+    # answers: a package's name is its path under the SDK root.
+    for pkg in "platform-tools" "platforms/android-36" "build-tools/36.0.0" "ndk/$ndk_version"; do
+        if [ -d "$sdk/$pkg" ]; then
+            ok "dev: android sdk '$pkg' already installed"
+        else
+            missing+=("$pkg")
+        fi
+    done
+
+    if [ "${#missing[@]}" -gt 0 ]; then
+        info "dev: android sdk: installing ${missing[*]} (the NDK alone is some 2.5 GB)"
+        # Google's SDK terms are printed on the first run and accepted by running
+        # this at all; there is no non-interactive path that does not, and the
+        # `--licenses` dance the old tool wanted is gone. Note the same first run
+        # also states that the CLI reports usage data (commands, sub-commands and
+        # flags) and names `--no-metrics` as the way out, and that flag is
+        # rejected by both `android sdk install` and `android sdk list` in 23.0:
+        # it is documented and not implemented, so there is currently nothing to
+        # pass.
+        run "'$android' sdk install $(printf "'%s' " "${missing[@]}")"
+    fi
+
+    [ "$DRY_RUN" -eq 1 ] || ok "dev: android sdk at $sdk (ndk $ndk_version)"
+}
+
 install_go() {
     local arch want current tarball url
     arch="$(dpkg --print-architecture 2>/dev/null || echo amd64)" # amd64 | arm64
@@ -1162,6 +1293,7 @@ if [ "${#DEV_LINES[@]}" -gt 0 ]; then
         rust) install_rust "$(printf "%s" "$line" | cut -s -d' ' -f2-)" ;;
         go) install_go ;;
         msvc-cross) install_msvc_cross ;;
+        android-sdk) install_android_sdk ;;
         node) install_node ;;
         neovim) install_neovim ;;
         claude) install_claude ;;

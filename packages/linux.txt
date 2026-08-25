@@ -108,6 +108,17 @@ apt lld
 # the loader agree, which is the first question when a wgpu app will not start.
 apt vulkan-tools
 
+# Android. The JDK is a version rather than 'default-jdk' on purpose: AGP 9.1
+# requires exactly 17 and this machine's default java is 21, so a build run
+# without JAVA_HOME pointing at the 17 install fails inside a Gradle daemon that
+# will not start, which reports as neither. zsh/.zshrc sets it; this is what it
+# points at.
+apt openjdk-17-jdk
+# The udev rules that let a plugged-in phone be seen by adb as this user rather
+# than only as root. Not on the critical path for wireless debugging, and one
+# package is cheaper than diagnosing 'no permissions' on the day a cable is used.
+apt android-sdk-platform-tools-common
+
 # -- From third-party repos declared above -------------------------------
 apt 1password
 apt 1password-cli
@@ -139,6 +150,8 @@ apt spotify-client
 #   dev rust [target...] -> rustup (~/.cargo), plus any extra rustup
 #                targets named on the line (the host target is implicit)
 #   dev msvc-cross -> clang-cl/llvm-lib/llvm-rc symlinks for cargo-xwin
+#   dev android-sdk -> Google's command-line tools + platform/build-tools/NDK
+#                (~/Android/Sdk); needs 'apt openjdk-17-jdk' above
 #   dev go     -> latest official tarball (/usr/local/go)
 #   dev node   -> nvm + Node LTS (~/.nvm)
 #   dev neovim -> latest stable tarball (/opt/nvim, linked into /usr/local/bin)
@@ -152,11 +165,16 @@ apt spotify-client
 # wasm32 is here rather than left to each project because it is a property of
 # the machine: without it `trunk build` stops with a rustup hint, and every
 # Bevy project that ships to itch.io or the web wants exactly this target.
-dev rust wasm32-unknown-unknown x86_64-pc-windows-msvc
+dev rust wasm32-unknown-unknown x86_64-pc-windows-msvc aarch64-linux-android
 # What cargo-xwin (below) needs on PATH to link a Windows binary. Cheap --
 # three symlinks into ~/.local/bin -- and the failure without it is a cc-rs
 # error about a missing 'llvm-lib' partway through a four-minute build.
 dev msvc-cross
+# The Android SDK and NDK, without Android Studio: the whole build loop is
+# command line. The NDK version is pinned in the installer and has to match what
+# a project builds against elsewhere -- see the comment on install_android_sdk.
+# Large: the NDK alone is some 2.5 GB.
+dev android-sdk
 dev go
 dev node
 dev neovim
@@ -202,6 +220,10 @@ cargo trunk
 # comes out is a genuine x86_64-pc-windows-msvc binary rather than a MinGW one
 # -- which is the ABI a Steam build is normally expected to be.
 cargo cargo-xwin
+# The Android half of the same idea. cargo-ndk picks the NDK's clang and sysroot
+# for a target triple and an API level, and stages the resulting .so where Gradle
+# expects it; without it the linker invocation has to be assembled by hand.
+cargo cargo-ndk
 
 # -----------------------------
 # F O N T S  (Nerd Fonts, per-user into ~/.local/share/fonts)

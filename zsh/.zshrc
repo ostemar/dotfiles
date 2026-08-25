@@ -150,6 +150,35 @@ if [[ -d /usr/local/go/bin ]] && [[ ":$PATH:" != *":/usr/local/go/bin:"* ]]; the
   export PATH="/usr/local/go/bin:$HOME/go/bin:$PATH"
 fi
 
+# Android SDK/NDK - if installed via `dev android-sdk` (~/Android/Sdk). Three
+# variables and one PATH entry, and each is a different silent failure without
+# it: cargo-ndk resolves the toolchain through ANDROID_NDK_HOME and reports its
+# absence as a linker error about a target triple, and Gradle without JAVA_HOME
+# picks up the default java, which on this machine is 21 -- AGP 9.1 requires
+# exactly 17 and says so only as a daemon that will not start.
+#
+# The NDK version is *found* rather than written here. install_linux.sh pins it,
+# and a copy of that number in this file would be free to drift from the copy
+# that decides what is on disk; the glob takes the highest-sorted ndk/<version>
+# directory (N: nothing if there are none, [-1]: the last match), so with the one
+# the installer puts there it is exact.
+if [[ -d "$HOME/Android/Sdk" ]]; then
+  export ANDROID_HOME="$HOME/Android/Sdk"
+  ndk_dirs=($ANDROID_HOME/ndk/*(N/))
+  (( $#ndk_dirs )) && export ANDROID_NDK_HOME="${ndk_dirs[-1]}"
+  unset ndk_dirs
+  if [[ ":$PATH:" != *":$ANDROID_HOME/platform-tools:"* ]]; then
+    export PATH="$ANDROID_HOME/platform-tools:$PATH"
+  fi
+fi
+
+# JDK 17, and it is not only Android that gets it: nothing else on this machine
+# runs on a JVM, and a variable that is sometimes set is worse than one that is
+# always wrong.
+if [[ -d /usr/lib/jvm/java-17-openjdk-amd64 ]]; then
+  export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+fi
+
 # Add ~/.local/bin to PATH if not already there
 # This is where user-installed tools (pip, uv, cargo, etc.) place binaries
 if [[ -d "$HOME/.local/bin" ]] && [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
