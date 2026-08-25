@@ -143,9 +143,12 @@ ppa  owner/name             # Launchpad PPA
 apt  package-name           # APT packages
 snap package-name --classic # Snap packages (skipped on WSL)
 flat app.id                 # Flatpak apps (skipped on WSL)
-dev  toolchain              # Upstream installers (rust, go, node, neovim,
+dev  toolchain [args...]    # Upstream installers (rust, go, node, neovim,
                             #   claude, wezterm, lazygit, glow) -- used
-                            #   where apt lags or has no package at all
+                            #   where apt lags or has no package at all.
+                            #   'dev rust' takes extra rustup targets, e.g.
+                            #   'dev rust wasm32-unknown-unknown'
+cargo crate [--flags]       # cargo install --locked <crate> (needs 'dev rust')
 font NerdFontName           # Nerd Fonts into ~/.local/share/fonts
                             #   (skipped on WSL)
 ```
@@ -156,6 +159,12 @@ plus a dearmored keyring under `/etc/apt/keyrings`.
 
 `dev` and `font` entries fetch the current upstream release and are idempotent:
 re-running `install_linux.sh` is also how you update them.
+
+`cargo` entries run after the `dev` toolchains, since `dev rust` is what puts
+cargo on disk. They are **never** reinstalled once present: they compile from
+source and take minutes, and none of them self-updates, so an installer re-run
+is the wrong place to discover a new release. Use `cargo install --force
+<crate>` for that.
 
 Then run:
 

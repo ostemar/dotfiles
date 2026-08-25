@@ -120,6 +120,7 @@ APT_PKGS=()
 SNAP_LINES=() # each entry is full "pkg [flags]"
 FLAT_LINES=() # each entry is full "app.id [flags]"
 DEV_LINES=()  # each entry is a toolchain name: rust | go | node
+CARGO_LINES=() # each entry is "crate [extra cargo-install flags]"
 FONT_LINES=() # each entry is a Nerd Fonts release name, e.g. JetBrainsMono
 REPO_LINES=() # each entry is "name key=val key=val ..." for a third-party apt repo
 PPA_LINES=()  # each entry is a Launchpad PPA, e.g. dotnet/backports
@@ -143,6 +144,7 @@ while IFS= read -r raw; do
     snap) [ -n "$rest" ] && SNAP_LINES+=("$rest") ;;
     flat) [ -n "$rest" ] && FLAT_LINES+=("$rest") ;;
     dev) [ -n "$rest" ] && DEV_LINES+=("$rest") ;;
+    cargo) [ -n "$rest" ] && CARGO_LINES+=("$rest") ;;
     font) [ -n "$rest" ] && FONT_LINES+=("$rest") ;;
     repo) [ -n "$rest" ] && REPO_LINES+=("$rest") ;;
     pin) [ -n "$rest" ] && PIN_LINES+=("$rest") ;;
@@ -203,7 +205,12 @@ flat_installed() {
 # ---------- Dev toolchain installers (idempotent) ----------
 # These use the canonical upstream installers rather than apt so the versions
 # stay current and self-updating. PATH wiring is handled in zsh/.zshrc.
+# Any words after 'rust' on the dev line are extra rustup targets, e.g.
+# 'dev rust wasm32-unknown-unknown'. The host target is implicit and never
+# needs naming.
 install_rust() {
+    local targets="${1:-}"
+    local target
     local rustup_bin="$HOME/.cargo/bin/rustup"
     [ -x "$rustup_bin" ] || rustup_bin="$(command -v rustup 2>/dev/null || true)"
 
@@ -213,17 +220,101 @@ install_rust() {
         info "dev: updating rust toolchains via rustup"
         run "'$rustup_bin' update"
         ok "dev: rust $("${HOME}/.cargo/bin/rustc" --version 2>/dev/null || rustc --version 2>/dev/null)"
-        return
-    fi
-
-    if command -v rustc >/dev/null 2>&1; then
+    elif command -v rustc >/dev/null 2>&1; then
+        # No rustup to add a target with either, so there is nothing further to
+        # do here even if the line names some.
         warn "dev: rustc present but not rustup-managed; leaving it alone"
         return
+    else
+        info "dev: installing rust via rustup"
+        # --no-modify-path: shell PATH is managed by zsh/.zshrc (sources ~/.cargo/env)
+        run "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path"
+        rustup_bin="$HOME/.cargo/bin/rustup"
     fi
 
-    info "dev: installing rust via rustup"
-    # --no-modify-path: shell PATH is managed by zsh/.zshrc (sources ~/.cargo/env)
-    run "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path"
+    # 'rustup target add' is already idempotent, but it goes to the network to
+    # find that out, so ask the local list first.
+    for target in $targets; do
+        if "$rustup_bin" target list --installed 2>/dev/null | grep -qx "$target"; then
+            ok "dev: rust target $target already installed"
+        else
+            info "dev: adding rust target $target"
+            run "'$rustup_bin' target add '$target'"
+        fi
+    done
+}
+
+# A crates.io binary, e.g. 'cargo trunk'. --locked is the point: without it
+# cargo re-resolves the crate's dependency tree against today's registry, so one
+# version number builds differently on two machines a week apart.
+#
+# Never reinstalled once present. These compile from source and take minutes,
+# and none of them self-updates, so an installer re-run is the wrong place to
+# discover a new release -- 'cargo install --force <crate>' is the right one.
+install_cargo_crate() {
+    local line="$1"
+    local crate flags cargo_bin
+    crate="$(printf "%s" "$line" | awk '{print $1}')"
+    flags="$(printf "%s" "$line" | cut -s -d' ' -f2-)"
+
+    cargo_bin="$HOME/.cargo/bin/cargo"
+    [ -x "$cargo_bin" ] || cargo_bin="$(command -v cargo 2>/dev/null || true)"
+    if [ -z "$cargo_bin" ] || [ ! -x "$cargo_bin" ]; then
+        warn "cargo: no cargo found; skipping '$crate' (needs a 'dev rust' line above)"
+        return
+    fi
+
+    # 'cargo install --list' rather than 'command -v', because a crate's binary
+    # need not share its name and several crates ship more than one.
+    if "$cargo_bin" install --list 2>/dev/null | grep -q "^${crate} v"; then
+        ok "cargo: $crate already installed"
+        return
+    fi
+
+    info "cargo: installing $crate (compiles from source; this is slow)"
+    run "'$cargo_bin' install --locked $crate $flags"
+}
+
+# The three tools cargo-xwin needs to cross-compile a Windows MSVC binary, none
+# of which is reachable by the name it looks for on a stock Ubuntu:
+#
+#   clang-cl   not packaged at all -- and does not need to be. clang picks its
+#              driver mode from the name it was invoked as, so a symlink called
+#              clang-cl *is* clang-cl.
+#   llvm-lib   } shipped by llvm-N, but only under /usr/lib/llvm-N/bin, which
+#   llvm-rc    } is not on PATH. Only the versioned names are exposed.
+#
+# Symptom without them, and it names none of this: cargo-xwin sets
+# AR_x86_64_pc_windows_msvc=llvm-lib and the build dies partway through as
+# `error occurred in cc-rs: failed to find tool "llvm-lib"`.
+#
+# Into ~/.local/bin rather than /usr/local/bin: it is already on PATH (see
+# zsh/.zshrc) and needs no sudo. Symlinks rather than copies, so an LLVM
+# upgrade under the same prefix is picked up for free.
+install_msvc_cross() {
+    local llvm_bin tool
+    # Version-sorted, or llvm-9 would beat llvm-18.
+    llvm_bin="$(find /usr/lib -maxdepth 1 -type d -name 'llvm-*' 2>/dev/null | sort -V | tail -1)"
+    llvm_bin="${llvm_bin}/bin"
+
+    if [ ! -x "$llvm_bin/clang" ]; then
+        warn "dev: no clang under /usr/lib/llvm-*/bin; skipping msvc-cross (needs 'apt clang')"
+        return
+    fi
+
+    run "mkdir -p '$HOME/.local/bin'"
+    run "ln -sfn '$llvm_bin/clang' '$HOME/.local/bin/clang-cl'"
+    for tool in llvm-lib llvm-rc; do
+        if [ -e "$llvm_bin/$tool" ]; then
+            run "ln -sfn '$llvm_bin/$tool' '$HOME/.local/bin/$tool'"
+        else
+            warn "dev: $llvm_bin/$tool is missing; cargo-xwin will fail to link"
+        fi
+    done
+    # lld-link is the one that does come from a package (apt lld), so it is only
+    # worth saying something when it is absent.
+    command -v lld-link >/dev/null 2>&1 || warn "dev: no lld-link on PATH (needs 'apt lld')"
+    [ "$DRY_RUN" -eq 1 ] || ok "dev: msvc-cross tools linked from $llvm_bin into ~/.local/bin"
 }
 
 install_go() {
@@ -1068,8 +1159,9 @@ if [ "${#DEV_LINES[@]}" -gt 0 ]; then
     for line in "${DEV_LINES[@]}"; do
         tool="$(printf "%s" "$line" | awk '{print $1}')"
         case "$tool" in
-        rust) install_rust ;;
+        rust) install_rust "$(printf "%s" "$line" | cut -s -d' ' -f2-)" ;;
         go) install_go ;;
+        msvc-cross) install_msvc_cross ;;
         node) install_node ;;
         neovim) install_neovim ;;
         claude) install_claude ;;
@@ -1083,6 +1175,15 @@ if [ "${#DEV_LINES[@]}" -gt 0 ]; then
         esac
     done
     warn "Dev toolchains: open a new shell (or 'source ~/.zshrc') to pick up PATH changes."
+fi
+
+# ---------- CARGO crates ----------
+# After the dev toolchains, not before: 'dev rust' is what puts cargo on disk.
+if [ "${#CARGO_LINES[@]}" -gt 0 ]; then
+    info "Installing cargo crates..."
+    for line in "${CARGO_LINES[@]}"; do
+        install_cargo_crate "$line"
+    done
 fi
 
 # ---------- FONTS ----------

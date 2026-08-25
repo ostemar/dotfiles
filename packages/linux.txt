@@ -58,6 +58,7 @@ apt ripgrep
 apt fzf
 apt fd-find
 apt unzip
+apt zip
 apt zsh
 apt python3-pip
 apt tree
@@ -77,6 +78,35 @@ apt ffmpeg
 apt tmux
 apt libdbus-1-dev
 apt pkg-config
+
+# Bevy / Rust game development. This is the machine's list rather than any one
+# project's, so it is the full upstream recipe: a game that never enables
+# gamepads does not link libudev, but the next one will, and a missing -dev
+# package surfaces as a pkg-config failure three minutes into a cold build.
+#   libasound2-dev  ALSA, reached via bevy_audio -> rodio -> cpal -> alsa-sys.
+#                   The one here that is a real link rather than a dlopen.
+#   libudev-dev     bevy_gilrs (gamepads).
+#   libwayland-dev  } Ubuntu's session is Wayland; winit reaches it through
+#   libxkbcommon-dev} smithay-client-toolkit.
+# Not listed on purpose: libx11-dev and the Xlib -dev family. winit's X11 path
+# is x11-dl, which dlopens at runtime, so the headers buy nothing.
+apt libasound2-dev
+apt libudev-dev
+apt libwayland-dev
+apt libxkbcommon-dev
+# Linking dominates a Bevy incremental rebuild -- it is a large binary relinked
+# on every one-line change -- and mold is several times faster than GNU ld at
+# it. clang is what drives it (-fuse-ld=mold); a project opts in per target in
+# its own .cargo/config.toml, so installing these changes nothing by itself.
+apt clang
+apt mold
+# lld is a second linker and is here for cargo-xwin rather than for speed: a
+# Windows build cross-compiled from this machine is linked by lld-link, which
+# ships in this package.
+apt lld
+# Diagnosing a black window: 'vulkaninfo' says whether the driver, the ICD and
+# the loader agree, which is the first question when a wgpu app will not start.
+apt vulkan-tools
 
 # -- From third-party repos declared above -------------------------------
 apt 1password
@@ -106,7 +136,9 @@ apt spotify-client
 # D E V  (language toolchains via official installers)
 # Installed by install_linux.sh, not apt — keeps versions current and
 # self-updating. PATH wiring lives in zsh/.zshrc. Safe to re-run.
-#   dev rust   -> rustup (~/.cargo)
+#   dev rust [target...] -> rustup (~/.cargo), plus any extra rustup
+#                targets named on the line (the host target is implicit)
+#   dev msvc-cross -> clang-cl/llvm-lib/llvm-rc symlinks for cargo-xwin
 #   dev go     -> latest official tarball (/usr/local/go)
 #   dev node   -> nvm + Node LTS (~/.nvm)
 #   dev neovim -> latest stable tarball (/opt/nvim, linked into /usr/local/bin)
@@ -117,7 +149,14 @@ apt spotify-client
 #   dev rustdesk-> upstream .deb (stays dpkg-managed, skipped on WSL);
 #                  x86_64 gets the Wayland unattended-access preview build
 # -----------------------------
-dev rust
+# wasm32 is here rather than left to each project because it is a property of
+# the machine: without it `trunk build` stops with a rustup hint, and every
+# Bevy project that ships to itch.io or the web wants exactly this target.
+dev rust wasm32-unknown-unknown x86_64-pc-windows-msvc
+# What cargo-xwin (below) needs on PATH to link a Windows binary. Cheap --
+# three symlinks into ~/.local/bin -- and the failure without it is a cc-rs
+# error about a missing 'llvm-lib' partway through a four-minute build.
+dev msvc-cross
 dev go
 dev node
 dev neovim
@@ -142,6 +181,27 @@ dev difftastic
 # Chrome is NOT a 'repo' entry: its package rewrites its own .sources file from
 # /etc/cron.daily/google-chrome, so declaring it here too would duplicate it.
 dev chrome
+
+# -----------------------------
+# C A R G O  (Rust binaries from crates.io)
+# Installed with `cargo install --locked`, which is what makes them
+# reproducible: without it cargo re-resolves the crate's whole dependency tree
+# against today's registry, so the same version number builds differently on
+# two machines a week apart. Skipped when the binary is already on PATH --
+# these are slow to build and none of them self-updates, so re-running the
+# installer is not the place to notice a new release.
+#   cargo <crate> [--flag ...]   ->  cargo install --locked <crate> [flags]
+# -----------------------------
+# Trunk drives the wasm build: it compiles the crate to wasm32, runs
+# wasm-bindgen and wasm-opt, and copies the asset directories the game fetches
+# at runtime. It downloads its own wasm-bindgen-cli and binaryen, so this is
+# the whole of the web toolchain.
+cargo trunk
+# Cross-compiling a Windows release from this machine. cargo-xwin fetches
+# Microsoft's own CRT and SDK headers and links with clang-cl/lld-link, so what
+# comes out is a genuine x86_64-pc-windows-msvc binary rather than a MinGW one
+# -- which is the ABI a Steam build is normally expected to be.
+cargo cargo-xwin
 
 # -----------------------------
 # F O N T S  (Nerd Fonts, per-user into ~/.local/share/fonts)
