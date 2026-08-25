@@ -784,7 +784,9 @@ install_nerdfont() {
 # Declared in packages/linux.txt as:
 #   repo <name> url=<URI> suite=<suite> comps=<components> key=<keyurl> [arch=<arch>]
 # Writes a deb822 .sources file plus a dearmored keyring, matching the format
-# Ubuntu itself now uses. Re-running is a no-op once the files match.
+# Ubuntu itself now uses. Re-running is a no-op once the files match -- and the
+# key URL is part of what has to match, so a rotated key is refetched rather
+# than silently kept.
 APT_NEEDS_UPDATE=0
 
 install_repo() {
@@ -812,7 +814,15 @@ install_repo() {
     local keyring="/etc/apt/keyrings/${name}.gpg"
     local srcfile="/etc/apt/sources.list.d/${name}.sources"
     local body
-    body="Types: deb
+    # The key URL is recorded as a comment, and so is part of the comparison
+    # below. Without it a rotated key is never refetched: the .sources file
+    # still matches, the old keyring is still non-empty, and every apt-get
+    # update fails with NO_PUBKEY until someone deletes the keyring by hand.
+    # Spotify publishes each new signing key under its own long key id rather
+    # than redirecting one stable URL, so this is not hypothetical. apt ignores
+    # '#' lines in deb822 sources.
+    body="# key: ${key}
+Types: deb
 URIs: ${url}
 Suites: ${suite}
 Components: ${comps}"
@@ -828,20 +838,36 @@ Signed-By: ${keyring}"
 
     info "repo: configuring $name"
     if [ $DRY_RUN -eq 1 ]; then
-        echo "• curl -fsSL '$key' | sudo gpg --dearmor -o '$keyring'"
+        echo "• curl -fsSL '$key' | gpg --dearmor  (validated, then installed as $keyring)"
         echo "• write $srcfile"
         APT_NEEDS_UPDATE=1
         return
     fi
 
     sudo install -d -m 0755 /etc/apt/keyrings
-    # --yes so a re-run overwrites an existing keyring without prompting.
-    # gpg --dearmor passes through already-binary keys unchanged.
-    if ! curl -fsSL "$key" | sudo gpg --dearmor --yes -o "$keyring"; then
+    # Fetch into a temp file and validate before touching the installed
+    # keyring, so a bad fetch cannot clobber a working one. --dearmor rejects
+    # anything that is not OpenPGP data, which covers the usual failure of a
+    # dead URL answering 200 with an error page; the keyid check below is for
+    # input that parses but carries no public key, and it supplies the log
+    # line naming what actually signs the repo.
+    # --yes because mktemp has already created the file.
+    local tmpkey keyids
+    tmpkey="$(mktemp)"
+    if ! curl -fsSL "$key" | gpg --dearmor --yes -o "$tmpkey"; then
+        rm -f "$tmpkey"
         err "repo $name: could not fetch/dearmor key from $key; skipping"
         return
     fi
-    sudo chmod 0644 "$keyring"
+    keyids="$(gpg --show-keys --with-colons "$tmpkey" 2>/dev/null | awk -F: '/^pub:/{print $5}' | tr '\n' ' ')"
+    if [ -z "$keyids" ]; then
+        rm -f "$tmpkey"
+        err "repo $name: $key returned no public key; leaving the current keyring alone"
+        return
+    fi
+    sudo install -m 0644 "$tmpkey" "$keyring"
+    rm -f "$tmpkey"
+    info "repo: $name signed by ${keyids% }"
     printf "%s\n" "$body" | sudo tee "$srcfile" >/dev/null
     APT_NEEDS_UPDATE=1
 }
