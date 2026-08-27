@@ -98,6 +98,7 @@ alias la='exa --all --icons'
 alias l='ls -CF'
 alias bat='batcat'
 alias lg='lazygit'
+alias fffplay='ffplay -nodisp -autoexit -loglevel quiet'
 
 # History
 HISTSIZE=5000
