@@ -1,0 +1,76 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(fd:*)",
+      "Bash(gh api *)",
+      "Bash(gh auth status*)",
+      "Bash(gh issue close *)",
+      "Bash(gh issue comment *)",
+      "Bash(gh issue create *)",
+      "Bash(gh issue edit *)",
+      "Bash(gh issue list*)",
+      "Bash(gh issue lock *)",
+      "Bash(gh issue pin *)",
+      "Bash(gh issue reopen *)",
+      "Bash(gh issue status*)",
+      "Bash(gh issue unlock *)",
+      "Bash(gh issue unpin *)",
+      "Bash(gh issue view *)",
+      "Bash(gh label create *)",
+      "Bash(gh label edit *)",
+      "Bash(gh label list*)",
+      "Bash(gh pr checkout *)",
+      "Bash(gh pr checks *)",
+      "Bash(gh pr close *)",
+      "Bash(gh pr comment *)",
+      "Bash(gh pr create *)",
+      "Bash(gh pr diff *)",
+      "Bash(gh pr edit *)",
+      "Bash(gh pr list*)",
+      "Bash(gh pr merge *)",
+      "Bash(gh pr ready *)",
+      "Bash(gh pr reopen *)",
+      "Bash(gh pr review *)",
+      "Bash(gh pr status*)",
+      "Bash(gh pr view *)",
+      "Bash(gh release list*)",
+      "Bash(gh release view *)",
+      "Bash(gh repo clone *)",
+      "Bash(gh repo fork *)",
+      "Bash(gh repo list*)",
+      "Bash(gh repo view *)",
+      "Bash(gh run list*)",
+      "Bash(gh run rerun *)",
+      "Bash(gh run view *)",
+      "Bash(gh run watch *)",
+      "Bash(gh search *)",
+      "Bash(gh workflow list*)",
+      "Bash(gh workflow run *)",
+      "Bash(gh workflow view *)"
+    ],
+    "defaultMode": "auto"
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "npx -y ccusage statusline",
+    "padding": 0
+  },
+  "enabledPlugins": {
+    "csharp-lsp@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "rust-analyzer-lsp@claude-plugins-official": true,
+    "pr-review-toolkit@claude-plugins-official": true
+  },
+  "autoUpdatesChannel": "latest",
+  "tui": "fullscreen",
+  "skipDangerousModePermissionPrompt": true,
+  "theme": "custom:catppuccin-mocha",
+  "agentPushNotifEnabled": true,
+  "skipAutoPermissionPrompt": true,
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "GitHub CLI operations against the user's own repositories are routine project-management work and pre-authorized. This includes `gh issue create/edit/close/reopen/comment`, `gh pr create/edit/close/reopen/comment/merge/ready/review`, `gh api -X POST` to attach sub-issues (e.g. POST `repos/{owner}/{repo}/issues/{n}/sub_issues`), `gh api -X PATCH` on issues/PRs/sub-issues, and `gh api -X DELETE` on sub-issue relationships. Do not classify these as risky shared-external-system mutations needing extra confirmation, even though they post to GitHub. Still risky and should be confirmed: `gh repo delete`, `gh issue delete`, `gh release delete`, force pushes (`git push --force`/`-f`), `gh secret remove`, `gh ssh-key delete`, and any operation that revokes access or destroys data without an obvious undo."
+    ]
+  }
+}

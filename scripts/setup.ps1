@@ -6,6 +6,7 @@
   - %USERPROFILE%\.wezterm.lua  →  <repo>\wezterm\wezterm.lua
   - For each file in <repo>\powershell\ →  $HOME\Documents\PowerShell\
     * Special-case: Microsoft.PowerShell_profile.ps1 → $PROFILE
+  - For each entry in <repo>\claude\ →  $HOME\.claude\ (see claude\README.md)
 
 .DESCRIPTION
   - Safe to re-run. Cleans existing targets when necessary.
@@ -38,6 +39,7 @@ $DeltaSource     = Join-Path $RepoRoot "delta"
 $LazygitSource   = Join-Path $RepoRoot "lazygit"
 $WeztermSource   = Join-Path $RepoRoot "wezterm\wezterm.lua"
 $PwshRepoDir     = Join-Path $RepoRoot "powershell"
+$ClaudeSource    = Join-Path $RepoRoot "claude"
 
 # Key user paths
 $NvimTarget      = Join-Path $env:LOCALAPPDATA "nvim"
@@ -48,6 +50,7 @@ $LazygitTarget   = Join-Path $env:LOCALAPPDATA "lazygit"
 $WeztermTarget   = Join-Path $HOME ".wezterm.lua"
 $UserPwshDir     = Split-Path -Parent $PROFILE  # typically: $HOME\Documents\PowerShell
 $ProfileTarget   = $PROFILE                     # exact host-specific profile path
+$ClaudeTarget    = Join-Path $HOME ".claude"
 
 Write-Host "🔗 Dotfiles setup" -ForegroundColor Cyan
 Write-Host "  Repo root:  $RepoRoot"
@@ -57,6 +60,7 @@ Write-Host "  Delta:      $DeltaSource  →  $DeltaTarget"
 Write-Host "  Lazygit:    $LazygitSource  →  $LazygitTarget"
 Write-Host "  WezTerm:    $WeztermSource  →  $WeztermTarget"
 Write-Host "  PS folder:  $PwshRepoDir  →  $UserPwshDir (files only)"
+Write-Host "  Claude:     $ClaudeSource  →  $ClaudeTarget (per entry)"
 
 # ---------- Helpers ----------------------------------------------------------
 function Test-DeveloperModeEnabled {
@@ -118,6 +122,75 @@ function New-SafeSymlink {
       throw "Failed to create symlink '$LinkPath' → '$TargetPath': $($_.Exception.Message)`n$hint"
     }
   }
+}
+
+function Test-SymlinkCapability {
+  <#
+    Creating a symlink on Windows needs Developer Mode or an elevated shell.
+    New-SafeSymlink removes the existing target before it creates the new link,
+    so finding this out mid-run leaves a config unlinked and the script aborted.
+    Probe once, up front, before anything is removed.
+
+    -WhatIf:$false on each call so the probe really runs during a dry-run too;
+    otherwise $WhatIfPreference suppresses it and the probe always says yes.
+  #>
+  $probeDir = Join-Path ([System.IO.Path]::GetTempPath()) ("dotfiles-symlink-probe-" + [guid]::NewGuid().ToString("N"))
+  try {
+    New-Item -ItemType Directory -Path $probeDir -WhatIf:$false -ErrorAction Stop | Out-Null
+    $probeTarget = Join-Path $probeDir "target.txt"
+    Set-Content -LiteralPath $probeTarget -Value "probe" -WhatIf:$false -ErrorAction Stop
+    New-Item -ItemType SymbolicLink -Path (Join-Path $probeDir "link.txt") -Target $probeTarget -WhatIf:$false -ErrorAction Stop | Out-Null
+    return $true
+  } catch {
+    return $false
+  } finally {
+    Remove-Item -LiteralPath $probeDir -Recurse -Force -WhatIf:$false -ErrorAction SilentlyContinue
+  }
+}
+
+function Install-ClaudeEntries {
+  <#
+    Symlink each child of a repo claude\<dir> into $HOME\.claude\<dir>, one entry
+    at a time. Linking the whole directory would put Claude Code's own writes
+    (for example the reserved skills\synced folder) inside the repo.
+
+    Files named <name>.linux.<ext> are for the other platform and are skipped.
+  #>
+  param(
+    [Parameter(Mandatory)][string]$SourceDir,
+    [Parameter(Mandatory)][string]$TargetDir
+  )
+
+  if (-not (Test-Path -LiteralPath $SourceDir)) { return }
+
+  if (-not (Test-Path -LiteralPath $TargetDir)) {
+    if ($PSCmdlet.ShouldProcess($TargetDir, "Create directory")) {
+      New-Item -ItemType Directory -Path $TargetDir -Force | Out-Null
+    }
+  }
+
+  foreach ($entry in Get-ChildItem -LiteralPath $SourceDir -Force) {
+    if ($entry.Name -like "*.linux.*") {
+      Write-Host "⏭️  Skipped $($entry.Name) (Linux only)" -ForegroundColor DarkGray
+      continue
+    }
+    try {
+      New-SafeSymlink -LinkPath (Join-Path $TargetDir $entry.Name) -TargetPath $entry.FullName
+      Write-Host "✅ Linked $($entry.Name) → $TargetDir" -ForegroundColor Green
+    } catch {
+      Write-Warning "⚠️ Failed to link $($entry.Name): $($_.Exception.Message)"
+    }
+  }
+}
+
+# ---------- Preflight --------------------------------------------------------
+if (-not (Test-SymlinkCapability)) {
+  $hint = if (Test-DeveloperModeEnabled) {
+    "Developer Mode appears enabled, but creating a symlink still failed. Try running an elevated PowerShell."
+  } else {
+    "Enable Developer Mode (Settings → System → For developers) or run PowerShell as Administrator."
+  }
+  throw "Cannot create symbolic links here, so nothing was changed.`n$hint"
 }
 
 # ---------- Validate sources -------------------------------------------------
@@ -230,6 +303,50 @@ foreach ($file in $pwshFiles) {
   } catch {
     Write-Warning "⚠️ Failed to link $($file.Name): $($_.Exception.Message)"
     throw
+  }
+}
+
+# ---------- Link Claude Code config -----------------------------------------
+# Claude Code reads ~/.claude/{CLAUDE.md,rules,skills,agents,themes,...} but also
+# writes runtime state there (sessions, projects, .credentials.json, plugins), so
+# link individual entries rather than the directory itself.
+if (Test-Path -LiteralPath $ClaudeSource) {
+  Write-Host "🔗 Linking Claude Code config → $ClaudeTarget" -ForegroundColor Cyan
+
+  if (-not (Test-Path -LiteralPath $ClaudeTarget)) {
+    if ($PSCmdlet.ShouldProcess($ClaudeTarget, "Create directory")) {
+      New-Item -ItemType Directory -Path $ClaudeTarget -Force | Out-Null
+    }
+  }
+
+  $ClaudeMdSource = Join-Path $ClaudeSource "CLAUDE.md"
+  if (Test-Path -LiteralPath $ClaudeMdSource) {
+    try {
+      New-SafeSymlink -LinkPath (Join-Path $ClaudeTarget "CLAUDE.md") -TargetPath $ClaudeMdSource
+      Write-Host "✅ Linked CLAUDE.md → $ClaudeTarget" -ForegroundColor Green
+    } catch {
+      Write-Warning "⚠️ CLAUDE.md link failed: $($_.Exception.Message)"
+    }
+  }
+
+  foreach ($name in @("rules", "skills", "agents", "output-styles", "themes", "workflows")) {
+    Install-ClaudeEntries -SourceDir (Join-Path $ClaudeSource $name) `
+                          -TargetDir (Join-Path $ClaudeTarget $name)
+  }
+
+  # settings.json is copied, never linked: Claude Code rewrites it whenever
+  # /config changes a value, which would replace the symlink with a real file and
+  # let the next run of this script discard those edits. Bootstrap only.
+  $SettingsSource = Join-Path $ClaudeSource "settings.json"
+  $SettingsTarget = Join-Path $ClaudeTarget "settings.json"
+  if (Test-Path -LiteralPath $SettingsSource) {
+    if (Test-Path -LiteralPath $SettingsTarget) {
+      Write-Host "ℹ️  settings.json already exists, left untouched." -ForegroundColor Yellow
+      Write-Host "   Compare by hand: Compare-Object (Get-Content '$SettingsTarget') (Get-Content '$SettingsSource')" -ForegroundColor Yellow
+    } elseif ($PSCmdlet.ShouldProcess($SettingsTarget, "Copy settings.json")) {
+      Copy-Item -LiteralPath $SettingsSource -Destination $SettingsTarget
+      Write-Host "✅ Copied settings.json (copy, not link)" -ForegroundColor Green
+    }
   }
 }
 

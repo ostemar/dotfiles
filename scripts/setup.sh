@@ -6,6 +6,7 @@ set -euo pipefail
 # - Links Neovim config and other ~/.config items
 # - Links bat config to ~/.config/bat
 # - Links ~/.zshrc from repo/zsh/.zshrc
+# - Links repo/claude/* into ~/.claude (see claude/README.md)
 # - Changes default shell to zsh (if zsh is installed)
 # - Idempotent: backs up existing paths unless --force
 # - Supports --dry-run and --repo
@@ -114,6 +115,41 @@ link_path() {
     fi
 }
 
+link_claude_entries() {
+    # $1 = repo claude/<dir>, $2 = ~/.claude/<dir>
+    #
+    # Link each child one at a time. Linking the whole directory would put
+    # Claude Code's own writes (for example the reserved skills/synced folder)
+    # inside the repo. Files named <name>.windows.<ext> are for the other
+    # platform and are skipped.
+    local src="$1"
+    local dst="$2"
+
+    [ -d "$src" ] || return 0
+
+    if [ ! -d "$dst" ]; then
+        if [ $DRY_RUN -eq 1 ]; then
+            info "Would mkdir -p $dst"
+        else
+            mkdir -p -- "$dst"
+        fi
+    fi
+
+    shopt -s nullglob dotglob
+    local entry name
+    for entry in "$src"/*; do
+        name="$(basename "$entry")"
+        case "$name" in
+        *.windows.*)
+            info "Skip (Windows only): $name"
+            continue
+            ;;
+        esac
+        link_path "$entry" "$dst/$name"
+    done
+    shopt -u nullglob dotglob
+}
+
 ensure_zsh_shell() {
     # Check if zsh is installed
     if ! command -v zsh >/dev/null 2>&1; then
@@ -208,6 +244,8 @@ ZSH_SRC="$REPO_ROOT/zsh/.zshrc"
 ZSH_DST="$HOME/.zshrc"
 P10K_SRC="$REPO_ROOT/zsh/.p10k.zsh"
 P10K_DST="$HOME/.p10k.zsh"
+CLAUDE_SRC="$REPO_ROOT/claude"
+CLAUDE_DST="$HOME/.claude"
 
 log "---------------------------------------------"
 log "Dotfiles setup (Linux)"
@@ -285,13 +323,54 @@ if [ -f "$ZSH_SRC" ]; then
     
     # Ensure zsh is the default shell
     info "Ensuring zsh is your default shell:"
-    ensure_zsh_shell
+    # Non-fatal: a missing zsh already warns for itself, and under 'set -e' the
+    # non-zero return would abort the script before the remaining links are made.
+    ensure_zsh_shell || true
 fi
 
 # ---------- Link ~/.p10k.zsh (Powerlevel10k prompt) if present in repo ----------
 if [ -f "$P10K_SRC" ]; then
     info "Linking Powerlevel10k config:"
     link_path "$P10K_SRC" "$P10K_DST"
+fi
+
+# ---------- Link Claude Code config ----------
+# Claude Code reads ~/.claude/{CLAUDE.md,rules,skills,agents,themes,...} but also
+# writes runtime state there (sessions, projects, .credentials.json, plugins), so
+# link individual entries rather than the directory itself.
+if [ -d "$CLAUDE_SRC" ]; then
+    info "Linking Claude Code config into $CLAUDE_DST"
+
+    if [ ! -d "$CLAUDE_DST" ]; then
+        if [ $DRY_RUN -eq 1 ]; then
+            info "Would mkdir -p $CLAUDE_DST"
+        else
+            mkdir -p -- "$CLAUDE_DST"
+        fi
+    fi
+
+    if [ -f "$CLAUDE_SRC/CLAUDE.md" ]; then
+        link_path "$CLAUDE_SRC/CLAUDE.md" "$CLAUDE_DST/CLAUDE.md"
+    fi
+
+    for claude_dir in rules skills agents output-styles themes workflows; do
+        link_claude_entries "$CLAUDE_SRC/$claude_dir" "$CLAUDE_DST/$claude_dir"
+    done
+
+    # settings.json is copied, never linked: Claude Code rewrites it whenever
+    # /config changes a value, which would replace the symlink with a real file
+    # and let the next run of this script discard those edits. Bootstrap only.
+    if [ -f "$CLAUDE_SRC/settings.json" ]; then
+        if [ -e "$CLAUDE_DST/settings.json" ]; then
+            warn "settings.json already exists, left untouched."
+            warn "  Compare by hand: diff $CLAUDE_DST/settings.json $CLAUDE_SRC/settings.json"
+        elif [ $DRY_RUN -eq 1 ]; then
+            info "Would copy $CLAUDE_SRC/settings.json -> $CLAUDE_DST/settings.json"
+        else
+            cp -- "$CLAUDE_SRC/settings.json" "$CLAUDE_DST/settings.json"
+            ok "Copied settings.json (copy, not link)"
+        fi
+    fi
 fi
 
 ok "Setup complete."

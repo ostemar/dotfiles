@@ -10,6 +10,7 @@ Personal dotfiles for cross-platform development environment setup (Windows/Linu
 - `powershell/` - PowerShell profile and Oh My Posh theme
 - `bat/`, `delta/`, `lazygit/` - Tool configurations
 - `packages/` - Package lists for apt, snap, flatpak, chocolatey, winget
+- `claude/` - Claude Code config linked into `~/.claude` (see `claude/README.md`)
 
 ## Line Endings (CRITICAL)
 - Shell scripts (`.sh`, `.bash`, `.zsh`, `.zshrc`): Always LF (Unix)

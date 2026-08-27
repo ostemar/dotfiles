@@ -12,6 +12,8 @@ keep my setup consistent across systems.
 - **WezTerm** - Terminal config (Catppuccin Mocha, JetBrainsMono Nerd Font,
   vim-style pane keybinds; platform-guarded for Windows/Linux)
 - **Bat** - Syntax highlighting for cat with Catppuccin Mocha theme
+- **Claude Code** - Global `CLAUDE.md`, per-platform rules, personal skills
+  and the Catppuccin Mocha theme, linked into `~/.claude`
 - **Git** - Configuration and tooling
 - Modern CLI tools (ripgrep, fzf, fd, bat, etc.)
 
