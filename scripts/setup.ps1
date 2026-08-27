@@ -122,6 +122,25 @@ function New-SafeSymlink {
       throw "Failed to create symlink '$LinkPath' → '$TargetPath': $($_.Exception.Message)`n$hint"
     }
   }
+
+  # Verify the postcondition instead of trusting that no exception means success.
+  # A declined ShouldProcess skips the block above and returns quietly, so the
+  # caller would print its success message over a link that was never made. That
+  # silently left an old junction in place twice before this check existed.
+  if (-not $WhatIfPreference) {
+    $result = Get-Item -LiteralPath $LinkPath -Force -ErrorAction SilentlyContinue
+    if (-not $result) {
+      throw "'$LinkPath' was not created. The operation was skipped, not performed."
+    }
+    if ($result.LinkType -ne "SymbolicLink") {
+      $kind = if ($result.LinkType) { $result.LinkType } else { "a regular file or directory" }
+      throw "'$LinkPath' is $kind, not a SymbolicLink. Remove it and re-run."
+    }
+    $actualTarget = @($result.Target)[0]
+    if ($actualTarget -ne $TargetPath) {
+      throw "'$LinkPath' points at '$actualTarget', not '$TargetPath'."
+    }
+  }
 }
 
 function Test-SymlinkCapability {
