@@ -14,6 +14,11 @@ config.font_size = 12
 config.color_scheme = "Catppuccin Mocha"
 config.font = wezterm.font("JetBrainsMono NF")
 
+-- Ctrl+= / Ctrl+- change the font size only; the window keeps its pixel size and
+-- the grid reflows to fit. Without this WezTerm resizes the window to preserve
+-- the cols/rows count, which fights tiling WMs (GlazeWM here).
+config.adjust_window_size_when_changing_font_size = false
+
 config.scrollback_lines = 10000
 config.hide_tab_bar_if_only_one_tab = true
 config.audible_bell = "Disabled"
