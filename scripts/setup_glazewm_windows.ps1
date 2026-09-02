@@ -19,29 +19,26 @@
      With the Windows key as the modifier, a win+ combo leaves the Start menu
      open afterwards. Open GlazeWM bug, glzr-io/glazewm#1215. Applied always.
 
-  3. DisableLockWorkstation=1 (HKCU), only with -FreeWinL
-     Frees win+l so GlazeWM can bind it. Windows reserves Win+L below the level
-     a keyboard hook can intercept, so nothing else works. The cost is total:
-     this disables the LockWorkStation API, so the machine cannot be locked at
-     all, by any means, including the Ctrl+Alt+Del screen. Off by default.
+     Note there is deliberately no DisableLockWorkstation option here. That
+     policy frees a plain win+l binding, but disables the LockWorkStation API
+     outright, leaving no way to lock the machine at all. config.yaml sidesteps
+     the whole problem by binding focus to win+alt instead: Windows hotkeys
+     match their modifier set exactly, so Win+Alt+L never reaches winlogon's
+     Win+L handler and both bindings coexist.
 
-  4. Scheduled task 'GlazeWM', at logon, RunLevel Highest
+  3. Scheduled task 'GlazeWM', at logon, RunLevel Highest
      GlazeWM's own tray option "Run on system startup" writes a
      ...\CurrentVersion\Run entry, and Run entries launch with the filtered,
      non-elevated token. Combined with (1) that means a UAC prompt every logon
      or a silent failure. A scheduled task is the only way to autostart it
      elevated and silently. Leave the tray option OFF or you get two instances.
 
-  5. Startup-folder shortcut for Zebar
+  4. Startup-folder shortcut for Zebar
      Zebar is deliberately NOT in GlazeWM's startup_commands. A child of the
      elevated GlazeWM inherits elevation, and an elevated Zebar breaks its own
      systray widget: the tray works by receiving WM_COPYDATA broadcasts from
      other apps, and UIPI blocks messages from a lower integrity level to a
      higher one. A Startup-folder shortcut keeps Zebar at normal integrity.
-
-.PARAMETER FreeWinL
-  Also set DisableLockWorkstation=1. Read item 3 above first: this disables
-  locking the workstation entirely, not just the Win+L shortcut.
 
 .PARAMETER SkipScheduledTask
   Skip registering the GlazeWM autostart task. That step needs elevation; use
@@ -53,7 +50,6 @@
 
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
-  [switch]$FreeWinL,
   [switch]$SkipScheduledTask
 )
 
@@ -140,18 +136,23 @@ Set-RegistryValue `
   -Name 'NoWinKeys' -Value 1 `
   -Reason 'stop the Start menu opening after win+ combos'
 
-if ($FreeWinL) {
-  Write-Host "⚠️  -FreeWinL given: disabling workstation lock entirely." -ForegroundColor Yellow
-  Set-RegistryValue `
-    -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\System' `
-    -Name 'DisableLockWorkstation' -Value 1 `
-    -Reason 'free win+l for GlazeWM'
+# Win+L stays with Windows. config.yaml binds focus to win+alt precisely so it
+# does not have to fight for it. If a machine still carries
+# DisableLockWorkstation=1 from an older setup, say so, because it silently
+# leaves the machine unlockable.
+$LockPolicyKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\System'
+$lockDisabled = (Get-ItemProperty -LiteralPath $LockPolicyKey -Name 'DisableLockWorkstation' -ErrorAction SilentlyContinue).DisableLockWorkstation
+
+if ($lockDisabled -eq 1) {
+  Write-Warning @"
+⚠️ DisableLockWorkstation=1 is set on this machine, so it cannot be locked at
+   all: not by Win+L, not by the LockWorkStation API, not from the
+   Ctrl+Alt+Del screen. This setup no longer needs it, since focus is bound to
+   win+alt. Clear it and sign out and back in:
+     reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\System" /v DisableLockWorkstation /t REG_DWORD /d 0 /f
+"@
 } else {
-  # Single-quoted: a backtick is PowerShell's escape character, so 'win+l' in
-  # backticks would silently lose them.
-  Write-Host 'ℹ️  Leaving Win+L to Windows. The win+l binding in config.yaml will' -ForegroundColor Yellow
-  Write-Host '   lock the screen rather than focus right; use win+right instead,' -ForegroundColor Yellow
-  Write-Host '   or re-run with -FreeWinL to get the vim binding and no lock at all.' -ForegroundColor Yellow
+  Write-Host "✅ Win+L still locks the machine (focus is bound to win+alt)" -ForegroundColor DarkGray
 }
 
 # ---------- 4. GlazeWM autostart (scheduled task) ---------------------------

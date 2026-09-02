@@ -11,26 +11,26 @@
 # either: the token is `win`, or `lwin`/`rwin` to pin it to one side. The
 # GlazeWM README has the full key table.
 #
-# Two HKCU policies affect how well the Windows key works as a modifier. Both
-# are applied by scripts/setup_glazewm_windows.ps1:
+# The Win+L collision, and why focus alone uses win+alt
 #
-#   NoWinKeys=1              stops the Start menu opening after a win+ combo,
-#                            an open GlazeWM bug (glzr-io/glazewm#1215).
-#                            Applied by default.
+# Windows reserves Win+L for lock at a level below the keyboard hook GlazeWM
+# uses, so a plain `win+l` binding can never fire. But Windows hotkeys match
+# their modifier set exactly, so adding a modifier escapes the reservation:
+# Win+Alt+L is a different chord and winlogon never sees it. That is also why
+# `win+shift+l` below was never affected.
 #
-#   DisableLockWorkstation=1 frees win+l. Windows reserves it for lock at a
-#                            level below the keyboard hook GlazeWM uses, so
-#                            without this policy GlazeWM cannot bind it.
-#                            Applied ONLY with -FreeWinL, because it disables
-#                            the LockWorkStation API outright: nothing can lock
-#                            the session while it is set, not the key, not
-#                            `rundll32 user32.dll,LockWorkStation`, not the
-#                            Lock entry on the Ctrl+Alt+Del screen. That is why
-#                            there is deliberately no lock keybinding below.
+# So the four focus bindings use win+alt and hjkl stays intact under the hand.
+# Only that cluster changed; everything else is still plain win+ or win+shift+.
+# The arrow aliases stay on plain win+ because they were never affected.
 #
-# So on a machine set up WITHOUT -FreeWinL, `win+l` below is dead: Windows
-# swallows it and locks the screen instead of focusing right. Use `win+right`
-# there, or rebind that direction to a free key.
+# The alternative was DisableLockWorkstation=1, which frees plain `win+l` but
+# disables the LockWorkStation API outright, leaving no way to lock the machine
+# at all, not by key, not by API, not from the Ctrl+Alt+Del screen. Not worth
+# one keystroke on a laptop.
+#
+# NoWinKeys=1 is still applied by scripts/setup_glazewm_windows.ps1. It stops
+# the Start menu opening after a win+ combo, an open GlazeWM bug
+# (glzr-io/glazewm#1215), and carries no security cost.
 # ---------------------------------------------------------------------------
 
 general:
@@ -224,14 +224,18 @@ binding_modes:
 
 keybindings:
   # Shift focus in a given direction.
+  #
+  # win+alt, not plain win+, because Windows reserves Win+L for lock below the
+  # level GlazeWM's keyboard hook can reach. Hotkeys match their modifier set
+  # exactly, so win+alt+l escapes that and hjkl survives intact. See the header.
   - commands: ['focus --direction left']
-    bindings: ['win+h', 'win+left']
+    bindings: ['win+alt+h', 'win+left']
   - commands: ['focus --direction right']
-    bindings: ['win+l', 'win+right']
+    bindings: ['win+alt+l', 'win+right']
   - commands: ['focus --direction up']
-    bindings: ['win+k', 'win+up']
+    bindings: ['win+alt+k', 'win+up']
   - commands: ['focus --direction down']
-    bindings: ['win+j', 'win+down']
+    bindings: ['win+alt+j', 'win+down']
 
   # Move focused window in a given direction.
   - commands: ['move --direction left']

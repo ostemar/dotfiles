@@ -199,7 +199,7 @@ Add modules to `packages/powershell_modules.txt` and run the install script.
 | --------------------- | -------------------------------------------------- | ----------------------------------- |
 | `install_windows.ps1` | Installs packages and optionally runs setup        | `-RunSetup` to also create symlinks |
 | `setup.ps1`           | Creates symlinks for Neovim, WezTerm, PowerShell, and tool configs | `-WhatIf` for dry-run mode          |
-| `setup_glazewm_windows.ps1` | GlazeWM/Zebar machine state: autostart, registry policies, elevation flag | `-FreeWinL`, `-SkipScheduledTask`, `-WhatIf` |
+| `setup_glazewm_windows.ps1` | GlazeWM/Zebar machine state: autostart, registry policies, elevation flag | `-SkipScheduledTask`, `-WhatIf` |
 
 ### Linux
 
@@ -294,17 +294,24 @@ elevated Zebar breaks its own system tray: the tray works by receiving
 lower integrity level to a higher one. A Startup-folder shortcut keeps Zebar at
 normal integrity.
 
-### The Win+L tradeoff
+### The Win+L collision
 
-`config.yaml` binds `win+l` to focus-right, vim style. Windows reserves Win+L
-for lock at a level below any keyboard hook, so that binding only works when
-`DisableLockWorkstation=1` is set, which is what `-FreeWinL` does.
+Windows reserves Win+L for lock at a level below any keyboard hook, so a plain
+`win+l` binding can never reach GlazeWM. That is awkward for a vim layout,
+where `l` is focus-right.
 
-That flag is off by default because it is not a keyboard tweak: it disables the
-`LockWorkStation` API outright. With it set, **the machine cannot be locked at
-all**, not by the key, not by `rundll32 user32.dll,LockWorkStation`, and not
-from the Ctrl+Alt+Del screen. Without it, `win+l` locks the screen instead of
-focusing right, so use `win+right` or rebind that direction.
+The fix is that Windows hotkeys match their modifier set **exactly**. Win+Alt+L
+is a different chord, so winlogon's Win+L handler never sees it. The four focus
+bindings therefore use `win+alt+hjkl`, and everything else stays on plain
+`win+` or `win+shift+`. Arrow aliases stay on plain `win+` since they were
+never affected.
+
+The obvious alternative, `DisableLockWorkstation=1`, frees plain `win+l` but
+disables the `LockWorkStation` API outright: the machine then cannot be locked
+at all, not by key, not by API, not from the Ctrl+Alt+Del screen. One keystroke
+is not worth that on a laptop, so this repo does not offer it. If a machine
+still carries that policy from an earlier setup,
+`setup_glazewm_windows.ps1` warns and tells you how to clear it.
 
 ### The status bar
 
