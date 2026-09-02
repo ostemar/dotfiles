@@ -40,6 +40,14 @@ winget RustDesk.RustDesk
 winget Anthropic.ClaudeCode
 winget AgileBits.1Password
 winget AgileBits.1Password.CLI
+# Tiling window manager and its status bar. Configs in glazewm/ and zebar/ are
+# linked by scripts/setup.ps1; system setup is scripts/setup_glazewm_windows.ps1.
+winget glzr-io.glazewm
+winget glzr-io.zebar
+# Terminal launched by GlazeWM's win+enter binding.
+winget wez.wezterm
+# Supplies the icon glyphs the Zebar bar renders; without it the bar shows tofu.
+winget DEVCOM.JetBrainsMonoNerdFont
 winget Dropbox.Dropbox
 winget Spotify.Spotify
 winget JetBrains.Rider

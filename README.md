@@ -23,6 +23,9 @@ keep my setup consistent across systems.
 - Terminal Icons and colorized output
 - Posh-Git integration
 - Automated package installation via Chocolatey/Winget
+- **GlazeWM** tiling window manager with the Windows key as the modifier, plus
+  a **Zebar** status bar carrying a working system tray. Windows only; the
+  Linux scripts never touch either. See [GlazeWM and Zebar](#-glazewm-and-zebar).
 
 ### 🐧 Linux-Specific
 
@@ -102,6 +105,15 @@ dotfiles/
 │   └── .oh-my-posh.ostemar.json
 ├── wezterm/                # WezTerm terminal config
 │   └── wezterm.lua
+├── glazewm/                # GlazeWM tiling WM config (Windows only)
+│   └── config.yaml
+├── zebar/                  # Zebar status bar (Windows only)
+│   ├── settings.json      # Which pack/widget starts (copied, not linked)
+│   └── martin-bar/        # The widget pack itself
+│       ├── zpack.json
+│       ├── topbar.html
+│       ├── styles.css
+│       └── vendor/        # Vendored deps, so the bar needs no network
 ├── zsh/                    # Zsh configuration
 │   └── .zshrc
 ├── packages/               # Package lists
@@ -112,7 +124,8 @@ dotfiles/
     ├── install_linux.sh   # Install Linux packages
     ├── install_windows.ps1
     ├── setup.sh           # Create symlinks (Linux)
-    └── setup.ps1          # Create symlinks (Windows)
+    ├── setup.ps1          # Create symlinks (Windows)
+    └── setup_glazewm_windows.ps1  # GlazeWM autostart + registry policies
 ```
 
 ## 🔧 Customization
@@ -186,6 +199,7 @@ Add modules to `packages/powershell_modules.txt` and run the install script.
 | --------------------- | -------------------------------------------------- | ----------------------------------- |
 | `install_windows.ps1` | Installs packages and optionally runs setup        | `-RunSetup` to also create symlinks |
 | `setup.ps1`           | Creates symlinks for Neovim, WezTerm, PowerShell, and tool configs | `-WhatIf` for dry-run mode          |
+| `setup_glazewm_windows.ps1` | GlazeWM/Zebar machine state: autostart, registry policies, elevation flag | `-FreeWinL`, `-SkipScheduledTask`, `-WhatIf` |
 
 ### Linux
 
@@ -236,6 +250,81 @@ Based on [LazyVim](https://www.lazyvim.org/) with additional customizations:
 - 📊 Line numbers and Git modifications display
 - 🔍 Custom syntax mappings for common file types
 - 📄 Smart paging with mouse support
+
+## 🪟 GlazeWM and Zebar
+
+Windows only. `scripts/setup.sh` never references either directory, so nothing
+here reaches a Linux or WSL machine.
+
+Setup is two steps, because config files and machine state are separate
+problems:
+
+```powershell
+# 1. Link the configs (needs Developer Mode or an elevated shell)
+.\scripts\setup.ps1
+
+# 2. Machine state: autostart, registry policies, elevation flag
+.\scripts\setup_glazewm_windows.ps1        # run elevated
+```
+
+### Why the second script exists
+
+`config.yaml` cannot express any of the following, and all of it is
+load-bearing.
+
+**`RUNASADMIN` on `glazewm.exe`.** The keyboard hook cannot see input while an
+elevated window has focus. Without the flag a modifier key-up gets missed and
+bare keys start firing WM commands.
+
+**`NoWinKeys=1`.** With Win as the modifier, a `win+` combo leaves the Start
+menu open afterwards. Open bug,
+[glzr-io/glazewm#1215](https://github.com/glzr-io/glazewm/issues/1215).
+
+**A scheduled task rather than the tray toggle.** GlazeWM's own "Run on system
+startup" writes a `CurrentVersion\Run` entry, and Run entries launch with the
+filtered, non-elevated token. Combined with the flag above that means a UAC
+prompt every logon, or silence. A logon task with `RunLevel Highest` is the
+only way to start it elevated and quietly. Leave the tray toggle **off**, or
+you get two instances.
+
+**Zebar started separately.** It is deliberately not in GlazeWM's
+`startup_commands`. A child of the elevated GlazeWM inherits elevation, and an
+elevated Zebar breaks its own system tray: the tray works by receiving
+`WM_COPYDATA` broadcasts from other apps, and UIPI blocks messages sent from a
+lower integrity level to a higher one. A Startup-folder shortcut keeps Zebar at
+normal integrity.
+
+### The Win+L tradeoff
+
+`config.yaml` binds `win+l` to focus-right, vim style. Windows reserves Win+L
+for lock at a level below any keyboard hook, so that binding only works when
+`DisableLockWorkstation=1` is set, which is what `-FreeWinL` does.
+
+That flag is off by default because it is not a keyboard tweak: it disables the
+`LockWorkStation` API outright. With it set, **the machine cannot be locked at
+all**, not by the key, not by `rundll32 user32.dll,LockWorkStation`, and not
+from the Ctrl+Alt+Del screen. Without it, `win+l` locks the screen instead of
+focusing right, so use `win+right` or rebind that direction.
+
+### The status bar
+
+`zebar/martin-bar/` is a local pack rather than the stock `glzr-io.starter`.
+The starter lives under Program Files, is replaced on every Zebar update, and
+describes itself as being for testing and development. It also pulled React,
+ReactDOM, a Babel JSX transpiler and a webfont from public CDNs on every start,
+three of them unpinned and none of the modules integrity-checked. This pack is
+plain DOM with the Zebar client API vendored, so it starts with no network.
+
+Icons come from JetBrainsMono Nerd Font, listed in `packages/windows.txt`.
+Without it the bar renders tofu.
+
+The tray splits into pinned icons and an overflow behind a caret, mirroring
+Windows' own show/hide split. It cannot read that Windows setting: the provider
+exposes only an id, a tooltip and a bitmap, never the `IsPromoted` flag. Pin by
+tooltip substring via `PINNED_TOOLTIPS`, or, for apps that register no tooltip
+at all (Dropbox, Slack and 1Password among them), by GUID via `PINNED_IDS`.
+Find a GUID under `HKCU\Control Panel\NotifyIconSettings`, where each subkey
+carries an `ExecutablePath` and an `IconGuid`.
 
 ## 🤝 Using These Dotfiles
 

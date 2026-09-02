@@ -1,0 +1,324 @@
+/**
+ * Icons come from the locally installed JetBrainsMono Nerd Font, not from the
+ * nerdfonts.com webfont the starter pack imported at runtime. Glyphs are
+ * written as CSS escapes (\f240) rather than literal Private Use Area
+ * characters so this file stays pure ASCII and greppable.
+ *
+ * Codepoints are the standard Nerd Fonts ones. To find more, see
+ * https://www.nerdfonts.com/cheat-sheet and use the hex value of the glyph.
+ */
+
+:root {
+  --text-size: 12px;
+  --icon-size: 12px;
+
+  --text-color-light: rgba(0 0 0 / 95%);
+  --text-color-dark: rgba(255 255 255 / 95%);
+
+  --icon-color-light: LightSteelBlue;
+  --icon-color-dark: rgba(115 130 175 / 95%);
+
+  --background-color-light: rgba(238 238 238 / 90%);
+  --background-color-dark: linear-gradient(
+    rgb(0 0 0 / 90%),
+    rgb(5 2 20 / 85%)
+  );
+}
+
+@media (prefers-color-scheme: light) {
+  body {
+    color: var(--text-color-light);
+  }
+
+  i,
+  .systray-caret {
+    color: var(--icon-color-light);
+  }
+
+  #root {
+    background: var(--background-color-light);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    color: var(--text-color-dark);
+  }
+
+  i,
+  .systray-caret {
+    color: var(--icon-color-dark);
+  }
+
+  #root {
+    background: var(--background-color-dark);
+  }
+}
+
+/* Icon font. NFM is the mono variant, so glyphs keep a predictable width. */
+.nf {
+  font-family:
+    'JetBrainsMono NFM', 'JetBrainsMono NF', 'Symbols Nerd Font',
+    monospace;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  line-height: 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+.nf-windows::before {
+  content: '\f17a';
+}
+.nf-cpu::before {
+  content: '\f4bc';
+}
+.nf-chip::before {
+  content: '\e266';
+}
+.nf-power-plug::before {
+  content: '\f06a5';
+}
+.nf-battery-0::before {
+  content: '\f244';
+}
+.nf-battery-1::before {
+  content: '\f243';
+}
+.nf-battery-2::before {
+  content: '\f242';
+}
+.nf-battery-3::before {
+  content: '\f241';
+}
+.nf-battery-4::before {
+  content: '\f240';
+}
+.nf-ethernet::before {
+  content: '\f0201';
+}
+.nf-shield-lock::before {
+  content: '\f0ccc';
+}
+.nf-wifi-0::before {
+  content: '\f092f';
+}
+.nf-wifi-1::before {
+  content: '\f091f';
+}
+.nf-wifi-2::before {
+  content: '\f0922';
+}
+.nf-wifi-3::before {
+  content: '\f0925';
+}
+.nf-wifi-4::before {
+  content: '\f0928';
+}
+.nf-wifi-off::before {
+  content: '\f092e';
+}
+.nf-swap-horizontal::before {
+  content: '\f04e1';
+}
+.nf-swap-vertical::before {
+  content: '\f04e2';
+}
+.nf-chevron-up::before {
+  content: '\f0143';
+}
+.nf-chevron-down::before {
+  content: '\f0140';
+}
+
+i {
+  margin-right: 7px;
+  font-size: var(--icon-size);
+}
+
+body {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: var(--text-size);
+  overflow: hidden;
+}
+
+div,
+span,
+p {
+  cursor: default;
+  user-select: none;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+#root {
+  border-bottom: 1px solid rgb(255 255 255 / 5%);
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: center;
+  height: 100%;
+  padding: 4px 1.5vw;
+}
+
+.left,
+.center,
+.right {
+  display: flex;
+  align-items: center;
+}
+
+.center {
+  justify-self: center;
+}
+
+.right {
+  justify-self: end;
+}
+
+.logo,
+.binding-mode,
+.tiling-direction,
+.paused-button,
+.systray,
+.network,
+.memory,
+.cpu,
+.battery {
+  margin-right: 20px;
+}
+
+.workspaces {
+  display: flex;
+  align-items: center;
+}
+
+.workspace {
+  background: rgb(255 255 255 / 5%);
+  margin-right: 4px;
+  padding: 4px 8px;
+  color: rgb(255 255 255 / 90%);
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+
+  &.displayed {
+    background: rgb(255 255 255 / 15%);
+  }
+
+  &.focused,
+  &:hover {
+    background: rgb(75 115 255 / 50%);
+  }
+}
+
+.binding-mode,
+.tiling-direction,
+.paused-button {
+  background: rgb(255 255 255 / 15%);
+  color: rgb(255 255 255 / 90%);
+  border-radius: 2px;
+  line-height: 1;
+  padding: 4px 8px;
+  border: 0;
+  cursor: pointer;
+}
+
+.binding-mode {
+  margin-right: 4px;
+}
+
+/*
+ * System tray. Icons are forwarded from the real Windows notification area.
+ *
+ * Laid out caret first, then the overflow group, then the pinned icons, which
+ * mirrors where Windows puts its own caret. The overflow group expands inline
+ * because the widget window is only as tall as the bar and cannot paint a
+ * floating panel outside its own bounds.
+ */
+.systray {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.systray-pinned,
+.systray-overflow {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.systray-caret {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 20px;
+  margin-right: 2px;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 2px;
+  font-size: var(--icon-size);
+  cursor: pointer;
+}
+
+.systray-caret:hover {
+  background: rgb(255 255 255 / 15%);
+}
+
+.systray-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.systray-icon:hover {
+  background: rgb(255 255 255 / 15%);
+}
+
+.systray-icon img {
+  width: 16px;
+  height: 16px;
+  display: block;
+  /* Tray icons are bitmaps, so keep them crisp when the bar is DPI-scaled. */
+  image-rendering: -webkit-optimize-contrast;
+}
+
+.cpu .high-usage {
+  color: #900029;
+}
+
+.battery {
+  position: relative;
+}
+
+.battery .charging-icon {
+  position: absolute;
+  font-size: 7px;
+  left: -8px;
+  top: 3px;
+}
+
+/*
+ * Sections are hidden with the `hidden` attribute while their provider has no
+ * data yet. The class rules above set `display`, which would otherwise beat
+ * the user-agent `[hidden]` rule on specificity and leave empty gaps.
+ */
+[hidden] {
+  display: none !important;
+}

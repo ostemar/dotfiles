@@ -1,0 +1,544 @@
+<!doctype html>
+<!--
+  Zebar top bar for GlazeWM.
+
+  Created 2026-09-02 as a local replacement for the `glzr-io.starter` pack.
+  The starter lives under Program Files, is installer-managed, and describes
+  itself in its own manifest as "A basic widget pack for testing and
+  development", so any edit made to it is lost on the next Zebar update. This
+  pack lives in the config directory instead and is safe to edit.
+
+  Zebar finds local packs by scanning <config dir>/*/zpack.json, and takes the
+  pack id from the `name` field inside that file, NOT from the directory name.
+  That is why ../settings.json refers to this pack as `martin-bar`: zpack.json
+  next to this file says "name": "martin-bar". Renaming the directory changes
+  nothing; renaming that field breaks the reference in settings.json.
+
+  Differences from the starter pack this was derived from:
+
+  - No runtime CDN fetches. The starter pulled React, ReactDOM, a Babel JSX
+    transpiler and the nerdfonts.com webfont off public CDNs on every single
+    start. Three of those were unpinned and none of the ES modules were
+    integrity-checked. This widget is plain DOM with no framework, so React and
+    Babel are gone outright, and the Zebar client API is vendored locally at
+    ./vendor/zebar.js, pinned to 3.0.3. The bar now starts with no network.
+  - Icons come from the locally installed JetBrainsMono Nerd Font instead of
+    the webfont. See styles.css for the codepoints and how to add more.
+  - The `weather` provider is deliberately omitted. It geolocates and calls an
+    external API, which is unwanted on a work machine. To bring it back, add
+    `weather: { type: 'weather' }` to the provider group below and render
+    `output.weather.celsiusTemp` alongside an icon.
+  - Adds the `systray` provider, because the Windows taskbar is hidden and its
+    notification area went with it.
+
+  System tray behaviour, and its one limitation:
+
+  Zebar's systray provider reports every icon and does NOT expose the Windows
+  "promoted" flag, so it cannot follow the per-app show/hide choices made in
+  Settings > Personalization > Taskbar > Other system tray icons. Those live in
+  the registry under HKCU\Control Panel\NotifyIconSettings as an IsPromoted
+  value per app, which the provider never reads.
+
+  So this widget reproduces that split itself. Icons whose tooltip matches
+  PINNED_TOOLTIPS below are always visible; everything else sits behind the
+  caret and expands inline when clicked. Edit that list to change what gets
+  immediate access.
+
+  Matching on tooltip has one gap: some apps register a tray icon without one.
+  Measured on this machine, 6 of 21 icons reported an empty tooltip, and it is
+  not a startup race, the value is still empty after a minute of uptime.
+  Dropbox, Slack and 1Password are among them.
+
+  For those, pin by id via PINNED_IDS instead. The provider's id is either the
+  app's registered GUID or a "handle:uid" pair for apps that register no GUID.
+  A GUID is stable across app restarts and reboots and is safe to pin against;
+  a handle:uid is not, since the window handle changes when the app restarts.
+  Tray order is not stable across restarts either, so pinning by position is
+  not an option. An icon with neither a tooltip nor a GUID cannot be pinned and
+  simply lives behind the caret.
+
+  The overflow expands inline rather than dropping down as a floating panel,
+  because the widget window is only 40px tall and cannot paint outside its own
+  bounds. A taller transparent window could host a real flyout, but it would
+  also swallow mouse clicks across the whole top strip of the screen.
+
+  After editing, restart Zebar for changes to take effect. Errors surface in
+  ../errors.log.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" type="text/css" href="./styles.css" />
+  </head>
+  <body>
+    <div id="root">
+      <div class="app">
+        <div class="left">
+          <i class="logo nf nf-windows"></i>
+          <div class="workspaces" id="workspaces" hidden></div>
+        </div>
+
+        <div class="center" id="clock"></div>
+
+        <div class="right">
+          <button class="paused-button" id="paused" hidden>PAUSED</button>
+          <div class="binding-modes" id="binding-modes" hidden></div>
+          <button class="tiling-direction nf" id="tiling" hidden></button>
+
+          <div class="systray" id="systray" hidden>
+            <button class="systray-caret nf" id="systray-caret" hidden></button>
+            <div class="systray-overflow" id="systray-overflow" hidden></div>
+            <div class="systray-pinned" id="systray-pinned"></div>
+          </div>
+
+          <div class="network" id="network" hidden></div>
+          <div class="memory" id="memory" hidden></div>
+          <div class="cpu" id="cpu" hidden></div>
+          <div class="battery" id="battery" hidden></div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import * as zebar from './vendor/zebar.js';
+
+      /*
+       * Tray icons whose tooltip contains one of these get a permanent slot in
+       * the bar. Everything else goes behind the caret. Matched lowercase, as a
+       * substring, against the icon's live tooltip, so 'teams' catches
+       * 'Microsoft Teams' and 'headset' catches 'Headset Earphone (USB): 20%'.
+       *
+       * Tooltips observed on this machine, for reference when editing:
+       *   Windows Command Palette      Windows Security - Actions recommended.
+       *   Clipboard Compare (5)        PowerToys Awake Off
+       *   Bluetooth Devices            GlazeWM v3.10.1
+       *   Microsoft Teams              X-Rite Color Assistant
+       *   Safely Remove Hardware and Eject Media
+       *   Headset Earphone (USB): 20%  RustDesk Service is running
+       *   SentinelOne Agent            Zebar v3.3.1
+       *   Cisco Secure Client AnyConnect VPN: ...
+       */
+      const PINNED_TOOLTIPS = ['bluetooth', 'headset', 'anyconnect'];
+
+      /*
+       * Icons that register no tooltip at all cannot be matched above. Those
+       * that register a GUID can be pinned by that instead, and a GUID is
+       * stable across app restarts and reboots, unlike the handle:uid form of
+       * id that apps without a GUID get.
+       *
+       * To find one: HKCU\Control Panel\NotifyIconSettings has a subkey per
+       * tray app with ExecutablePath and, where the app registers one,
+       * IconGuid. Compared lowercase with any braces stripped.
+       */
+      const PINNED_IDS = [
+        '76ee69c1-2542-3ba1-9794-90b4143acccf', // Dropbox
+        '9ed7fc6b-1ccc-4793-b794-2114071fad78', // Slack
+        'bb3cc23c-6950-4e96-8b40-850e09f46934', // 1Password
+      ];
+
+      const providers = zebar.createProviderGroup({
+        glazewm: { type: 'glazewm' },
+        systray: { type: 'systray' },
+        network: { type: 'network' },
+        cpu: { type: 'cpu' },
+        memory: { type: 'memory' },
+        battery: { type: 'battery' },
+        date: { type: 'date', formatting: 'EEE d MMM t' },
+      });
+
+      const el = id => document.getElementById(id);
+
+      /*
+       * The date provider ticks every second and the group fires one combined
+       * output event, so render() runs about once a second. Sections that build
+       * elements are guarded by a signature so they only touch the DOM when
+       * something actually changed. Without that the tray icons would be torn
+       * down and rebuilt every tick and visibly flicker.
+       */
+      const signatures = {};
+
+      function changed(key, signature) {
+        if (signatures[key] === signature) {
+          return false;
+        }
+
+        signatures[key] = signature;
+        return true;
+      }
+
+      // Latest provider outputs, for event handlers to read at click time
+      // rather than closing over whatever was current when they were attached.
+      let latest = {};
+
+      // Whether the tray overflow is currently expanded.
+      let overflowExpanded = false;
+
+      // Tray icon elements are kept across renders and keyed by icon id, so an
+      // <img> is only reassigned when that icon's bitmap actually changes.
+      // Must be initialized before the first render() below, not merely
+      // declared alongside renderSystray: a `const` read before its
+      // declaration runs is a ReferenceError, not undefined.
+      const trayNodes = new Map();
+
+      el('systray-caret').addEventListener('click', () => {
+        overflowExpanded = !overflowExpanded;
+        render(latest);
+      });
+
+      providers.onOutput(() => render(providers.outputMap));
+      render(providers.outputMap);
+
+      function render(output) {
+        latest = output;
+
+        renderWorkspaces(output.glazewm);
+        renderWmStatus(output.glazewm);
+        renderSystray(output.systray);
+        renderNetwork(output.network);
+        renderMemory(output.memory);
+        renderCpu(output.cpu);
+        renderBattery(output.battery);
+
+        el('clock').textContent = output.date?.formatted ?? '';
+      }
+
+      function renderWorkspaces(glazewm) {
+        const root = el('workspaces');
+        root.hidden = !glazewm;
+
+        if (!glazewm) {
+          return;
+        }
+
+        const workspaces = glazewm.currentWorkspaces;
+        const signature = workspaces
+          .map(w => `${w.name}:${w.hasFocus}:${w.isDisplayed}`)
+          .join('|');
+
+        if (!changed('workspaces', signature)) {
+          return;
+        }
+
+        root.replaceChildren(
+          ...workspaces.map(workspace => {
+            const button = document.createElement('button');
+
+            button.className = [
+              'workspace',
+              workspace.hasFocus ? 'focused' : '',
+              workspace.isDisplayed ? 'displayed' : '',
+            ]
+              .filter(Boolean)
+              .join(' ');
+
+            button.textContent = workspace.displayName ?? workspace.name;
+            button.addEventListener('click', () =>
+              latest.glazewm?.runCommand(
+                `focus --workspace ${workspace.name}`,
+              ),
+            );
+
+            return button;
+          }),
+        );
+      }
+
+      function renderWmStatus(glazewm) {
+        const paused = el('paused');
+        const modes = el('binding-modes');
+        const tiling = el('tiling');
+
+        paused.hidden = !glazewm?.isPaused;
+        modes.hidden = !glazewm || glazewm.bindingModes.length === 0;
+        tiling.hidden = !glazewm;
+
+        if (!glazewm) {
+          return;
+        }
+
+        const signature = [
+          glazewm.isPaused,
+          glazewm.tilingDirection,
+          glazewm.bindingModes.map(m => m.name).join(','),
+        ].join('|');
+
+        if (!changed('wm-status', signature)) {
+          return;
+        }
+
+        tiling.classList.toggle(
+          'nf-swap-horizontal',
+          glazewm.tilingDirection === 'horizontal',
+        );
+        tiling.classList.toggle(
+          'nf-swap-vertical',
+          glazewm.tilingDirection !== 'horizontal',
+        );
+
+        modes.replaceChildren(
+          ...glazewm.bindingModes.map(mode => {
+            const button = document.createElement('button');
+
+            button.className = 'binding-mode';
+            button.textContent = mode.displayName ?? mode.name;
+            button.addEventListener('click', () =>
+              latest.glazewm?.runCommand(
+                `wm-disable-binding-mode --name ${mode.name}`,
+              ),
+            );
+
+            return button;
+          }),
+        );
+      }
+
+      function isPinned(icon) {
+        const id = (icon.id ?? '').toLowerCase().replace(/[{}]/g, '');
+
+        if (PINNED_IDS.includes(id)) {
+          return true;
+        }
+
+        const tooltip = (icon.tooltip ?? '').toLowerCase();
+        return PINNED_TOOLTIPS.some(match => tooltip.includes(match));
+      }
+
+      function renderSystray(systray) {
+        const root = el('systray');
+        const caret = el('systray-caret');
+        const overflowRoot = el('systray-overflow');
+        const pinnedRoot = el('systray-pinned');
+
+        const icons = systray?.icons ?? [];
+        root.hidden = icons.length === 0;
+
+        for (const icon of icons) {
+          let node = trayNodes.get(icon.id);
+
+          if (!node) {
+            node = createTrayNode(icon.id);
+            trayNodes.set(icon.id, node);
+          }
+
+          if (node.hash !== icon.iconHash) {
+            node.img.src = icon.iconUrl;
+            node.hash = icon.iconHash;
+          }
+
+          const tooltip = icon.tooltip ?? '';
+          node.img.alt = tooltip;
+          node.button.title = tooltip;
+        }
+
+        // Drop nodes for icons the tray no longer reports.
+        const live = new Set(icons.map(icon => icon.id));
+
+        for (const [id, node] of trayNodes) {
+          if (!live.has(id)) {
+            node.button.remove();
+            trayNodes.delete(id);
+          }
+        }
+
+        const pinned = icons.filter(isPinned);
+        const overflow = icons.filter(icon => !isPinned(icon));
+
+        caret.hidden = overflow.length === 0;
+        overflowRoot.hidden = overflow.length === 0 || !overflowExpanded;
+
+        const signature = [
+          pinned.map(icon => icon.id).join(','),
+          overflow.map(icon => icon.id).join(','),
+          overflowExpanded,
+        ].join('|');
+
+        if (!changed('systray', signature)) {
+          return;
+        }
+
+        caret.classList.toggle('nf-chevron-down', overflowExpanded);
+        caret.classList.toggle('nf-chevron-up', !overflowExpanded);
+        caret.title = overflowExpanded
+          ? 'Hide extra tray icons'
+          : `Show ${overflow.length} hidden tray icons`;
+
+        pinnedRoot.replaceChildren(
+          ...pinned.map(icon => trayNodes.get(icon.id).button),
+        );
+        overflowRoot.replaceChildren(
+          ...overflow.map(icon => trayNodes.get(icon.id).button),
+        );
+      }
+
+      function createTrayNode(iconId) {
+        const button = document.createElement('button');
+        const img = document.createElement('img');
+
+        button.className = 'systray-icon';
+        button.appendChild(img);
+
+        /*
+         * Clicks are forwarded to the owning application, which is what makes
+         * these real tray icons rather than a picture of them. Right click
+         * opens the app's own context menu.
+         */
+        button.addEventListener('click', () => {
+          latest.systray?.onLeftClick(iconId);
+        });
+
+        button.addEventListener('contextmenu', event => {
+          event.preventDefault();
+          latest.systray?.onRightClick(iconId);
+        });
+
+        button.addEventListener('auxclick', event => {
+          if (event.button === 1) {
+            event.preventDefault();
+            latest.systray?.onMiddleClick(iconId);
+          }
+        });
+
+        button.addEventListener('dblclick', () => {
+          latest.systray?.onLeftDoubleClick(iconId);
+        });
+
+        button.addEventListener('mouseenter', () => {
+          latest.systray?.onHoverEnter(iconId);
+        });
+
+        button.addEventListener('mouseleave', () => {
+          latest.systray?.onHoverLeave(iconId);
+        });
+
+        return { button, img, hash: null };
+      }
+
+      function renderNetwork(network) {
+        const root = el('network');
+        root.hidden = !network;
+
+        if (!network) {
+          return;
+        }
+
+        const ssid = network.defaultGateway?.ssid ?? '';
+
+        if (!changed('network', `${networkIcon(network)}|${ssid}`)) {
+          return;
+        }
+
+        root.replaceChildren(icon(networkIcon(network)), text(ssid));
+      }
+
+      function networkIcon(network) {
+        switch (network.defaultInterface?.type) {
+          case 'ethernet':
+            return 'nf-ethernet';
+          case 'proprietary_virtual':
+            return 'nf-shield-lock';
+          case 'wifi': {
+            const strength = network.defaultGateway?.signalStrength ?? 0;
+
+            if (strength >= 80) return 'nf-wifi-4';
+            if (strength >= 65) return 'nf-wifi-3';
+            if (strength >= 40) return 'nf-wifi-2';
+            if (strength >= 25) return 'nf-wifi-1';
+            return 'nf-wifi-0';
+          }
+          default:
+            return 'nf-wifi-off';
+        }
+      }
+
+      function renderMemory(memory) {
+        const root = el('memory');
+        root.hidden = !memory;
+
+        if (!memory) {
+          return;
+        }
+
+        const usage = `${Math.round(memory.usage)}%`;
+
+        if (changed('memory', usage)) {
+          root.replaceChildren(icon('nf-chip'), text(usage));
+        }
+      }
+
+      function renderCpu(cpu) {
+        const root = el('cpu');
+        root.hidden = !cpu;
+
+        if (!cpu) {
+          return;
+        }
+
+        const usage = Math.round(cpu.usage);
+        const high = cpu.usage > 85;
+
+        if (!changed('cpu', `${usage}|${high}`)) {
+          return;
+        }
+
+        const value = text(`${usage}%`);
+
+        // Change the text color if the CPU usage is high.
+        if (high) {
+          value.className = 'high-usage';
+        }
+
+        root.replaceChildren(icon('nf-cpu'), value);
+      }
+
+      function renderBattery(battery) {
+        const root = el('battery');
+        root.hidden = !battery;
+
+        if (!battery) {
+          return;
+        }
+
+        const percent = Math.round(battery.chargePercent);
+        const level = batteryLevel(battery.chargePercent);
+
+        if (
+          !changed('battery', `${percent}|${level}|${battery.isCharging}`)
+        ) {
+          return;
+        }
+
+        const parts = [];
+
+        if (battery.isCharging) {
+          const charging = icon('nf-power-plug');
+          charging.classList.add('charging-icon');
+          parts.push(charging);
+        }
+
+        parts.push(icon(level), text(`${percent}%`));
+        root.replaceChildren(...parts);
+      }
+
+      function batteryLevel(chargePercent) {
+        if (chargePercent > 90) return 'nf-battery-4';
+        if (chargePercent > 70) return 'nf-battery-3';
+        if (chargePercent > 40) return 'nf-battery-2';
+        if (chargePercent > 20) return 'nf-battery-1';
+        return 'nf-battery-0';
+      }
+
+      function icon(name) {
+        const node = document.createElement('i');
+        node.className = `nf ${name}`;
+        return node;
+      }
+
+      function text(value) {
+        const node = document.createElement('span');
+        node.textContent = value;
+        return node;
+      }
+    </script>
+  </body>
+</html>

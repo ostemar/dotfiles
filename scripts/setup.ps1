@@ -40,6 +40,9 @@ $LazygitSource   = Join-Path $RepoRoot "lazygit"
 $WeztermSource   = Join-Path $RepoRoot "wezterm\wezterm.lua"
 $PwshRepoDir     = Join-Path $RepoRoot "powershell"
 $ClaudeSource    = Join-Path $RepoRoot "claude"
+$GlazewmSource   = Join-Path $RepoRoot "glazewm\config.yaml"
+$ZebarPackSource = Join-Path $RepoRoot "zebar\martin-bar"
+$ZebarSettings   = Join-Path $RepoRoot "zebar\settings.json"
 
 # Key user paths
 $NvimTarget      = Join-Path $env:LOCALAPPDATA "nvim"
@@ -51,6 +54,10 @@ $WeztermTarget   = Join-Path $HOME ".wezterm.lua"
 $UserPwshDir     = Split-Path -Parent $PROFILE  # typically: $HOME\Documents\PowerShell
 $ProfileTarget   = $PROFILE                     # exact host-specific profile path
 $ClaudeTarget    = Join-Path $HOME ".claude"
+$GlzrDir         = Join-Path $HOME ".glzr"
+$GlazewmTarget   = Join-Path $GlzrDir "glazewm\config.yaml"
+$ZebarDir        = Join-Path $GlzrDir "zebar"
+$ZebarPackTarget = Join-Path $ZebarDir "martin-bar"
 
 Write-Host "🔗 Dotfiles setup" -ForegroundColor Cyan
 Write-Host "  Repo root:  $RepoRoot"
@@ -61,6 +68,8 @@ Write-Host "  Lazygit:    $LazygitSource  →  $LazygitTarget"
 Write-Host "  WezTerm:    $WeztermSource  →  $WeztermTarget"
 Write-Host "  PS folder:  $PwshRepoDir  →  $UserPwshDir (files only)"
 Write-Host "  Claude:     $ClaudeSource  →  $ClaudeTarget (per entry)"
+Write-Host "  GlazeWM:    $GlazewmSource  →  $GlazewmTarget"
+Write-Host "  Zebar pack: $ZebarPackSource  →  $ZebarPackTarget"
 
 # ---------- Helpers ----------------------------------------------------------
 function Test-DeveloperModeEnabled {
@@ -369,4 +378,54 @@ if (Test-Path -LiteralPath $ClaudeSource) {
   }
 }
 
+# ---------- Link GlazeWM and Zebar ------------------------------------------
+# Both apps keep runtime state next to their config (errors.log for each, plus
+# Zebar's .marketplace folder), so link individual entries rather than the
+# ~/.glzr directories themselves, the same way the Claude config is handled.
+#
+# This only sets up the config files. The machine state they depend on, the
+# registry policies, the elevation flag and the two autostart entries, lives in
+# scripts/setup_glazewm_windows.ps1 and has to be run separately.
+if (Test-Path -LiteralPath $GlazewmSource) {
+  try {
+    New-SafeSymlink -LinkPath $GlazewmTarget -TargetPath $GlazewmSource
+    Write-Host "✅ Linked GlazeWM config" -ForegroundColor Green
+  } catch {
+    Write-Warning "⚠️ GlazeWM link failed: $($_.Exception.Message)"
+  }
+} else {
+  Write-Warning "⚠️ GlazeWM source not found: $GlazewmSource (skipping)"
+}
+
+if (Test-Path -LiteralPath $ZebarPackSource) {
+  try {
+    New-SafeSymlink -LinkPath $ZebarPackTarget -TargetPath $ZebarPackSource
+    Write-Host "✅ Linked Zebar widget pack" -ForegroundColor Green
+  } catch {
+    Write-Warning "⚠️ Zebar pack link failed: $($_.Exception.Message)"
+  }
+
+  # settings.json is copied, never linked, for the same reason as Claude's:
+  # Zebar rewrites it whenever a widget's "run on startup" is toggled from the
+  # tray, which would either write through into the repo or replace the link
+  # with a real file. Bootstrap only.
+  $ZebarSettingsTarget = Join-Path $ZebarDir "settings.json"
+  if (Test-Path -LiteralPath $ZebarSettings) {
+    if (Test-Path -LiteralPath $ZebarSettingsTarget) {
+      Write-Host "ℹ️  Zebar settings.json already exists, left untouched." -ForegroundColor Yellow
+      Write-Host "   Compare by hand: Compare-Object (Get-Content '$ZebarSettingsTarget') (Get-Content '$ZebarSettings')" -ForegroundColor Yellow
+    } else {
+      Ensure-ParentDir -Path $ZebarSettingsTarget
+      if ($PSCmdlet.ShouldProcess($ZebarSettingsTarget, "Copy Zebar settings.json")) {
+        Copy-Item -LiteralPath $ZebarSettings -Destination $ZebarSettingsTarget
+        Write-Host "✅ Copied Zebar settings.json (copy, not link)" -ForegroundColor Green
+      }
+    }
+  }
+} else {
+  Write-Warning "⚠️ Zebar pack not found: $ZebarPackSource (skipping)"
+}
+
 Write-Host "🎉 Setup complete!" -ForegroundColor Green
+Write-Host "ℹ️  GlazeWM also needs system setup (autostart, registry policies):" -ForegroundColor Yellow
+Write-Host "   scripts\setup_glazewm_windows.ps1   (run elevated)" -ForegroundColor Yellow
