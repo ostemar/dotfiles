@@ -11,9 +11,14 @@ Personal dotfiles for cross-platform development environment setup (Windows/Linu
 - `bat/`, `delta/`, `lazygit/` - Tool configurations
 - `packages/` - Package lists for apt, snap, flatpak, chocolatey, winget
 - `claude/` - Claude Code config linked into `~/.claude` (see `claude/README.md`)
+- `bin/` - Small commands the setup scripts put on PATH. Cross-platform ones
+  come in pairs: an extension-less Bash script for Linux and Git Bash, and a
+  `.ps1` twin for PowerShell. Keep a pair in sync; their output should match
 
 ## Line Endings (CRITICAL)
-- Shell scripts (`.sh`, `.bash`, `.zsh`, `.zshrc`): Always LF (Unix)
+- Shell scripts (`.sh`, `.bash`, `.zsh`, `.zshrc`, everything in `bin/` without
+  an extension): Always LF (Unix). A CRLF in a shebang line makes Linux refuse
+  to run the file at all
 - PowerShell scripts (`.ps1`, `.psm1`, `.bat`, `.cmd`): Always CRLF (Windows)
 - Config files (`.lua`, `.json`, `.yaml`, `.md`, `.txt`): LF
 - See `.gitattributes` for complete rules - NEVER modify line endings manually

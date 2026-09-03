@@ -7,6 +7,7 @@
   - For each file in <repo>\powershell\ →  $HOME\Documents\PowerShell\
     * Special-case: Microsoft.PowerShell_profile.ps1 → $PROFILE
   - For each entry in <repo>\claude\ →  $HOME\.claude\ (see claude\README.md)
+  - <repo>\bin  added to the user PATH (commands, not config: no symlink needed)
 
 .DESCRIPTION
   - Safe to re-run. Cleans existing targets when necessary.
@@ -40,6 +41,7 @@ $LazygitSource   = Join-Path $RepoRoot "lazygit"
 $WeztermSource   = Join-Path $RepoRoot "wezterm\wezterm.lua"
 $PwshRepoDir     = Join-Path $RepoRoot "powershell"
 $ClaudeSource    = Join-Path $RepoRoot "claude"
+$BinSource       = Join-Path $RepoRoot "bin"
 $GlazewmSource   = Join-Path $RepoRoot "glazewm\config.yaml"
 $ZebarPackSource = Join-Path $RepoRoot "zebar\martin-bar"
 $ZebarSettings   = Join-Path $RepoRoot "zebar\settings.json"
@@ -68,6 +70,7 @@ Write-Host "  Lazygit:    $LazygitSource  →  $LazygitTarget"
 Write-Host "  WezTerm:    $WeztermSource  →  $WeztermTarget"
 Write-Host "  PS folder:  $PwshRepoDir  →  $UserPwshDir (files only)"
 Write-Host "  Claude:     $ClaudeSource  →  $ClaudeTarget (per entry)"
+Write-Host "  Commands:   $BinSource  (added to the user PATH)"
 Write-Host "  GlazeWM:    $GlazewmSource  →  $GlazewmTarget"
 Write-Host "  Zebar pack: $ZebarPackSource  →  $ZebarPackTarget"
 
@@ -208,6 +211,31 @@ function Install-ClaudeEntries {
     } catch {
       Write-Warning "⚠️ Failed to link $($entry.Name): $($_.Exception.Message)"
     }
+  }
+}
+
+function Add-UserPathEntry {
+  <#
+    Put a directory on the user PATH if it is not already there.
+
+    This writes the persistent, registry-backed user PATH rather than $env:Path,
+    which would last only as long as this process. Git Bash inherits the Windows
+    PATH, so the one entry serves PowerShell and Git Bash both.
+  #>
+  param([Parameter(Mandatory)][string]$Directory)
+
+  $entries = @([Environment]::GetEnvironmentVariable("Path", "User") -split ";" | Where-Object { $_ })
+  if ($entries -contains $Directory) {
+    Write-Host "✅ Already on the user PATH: $Directory" -ForegroundColor Green
+    return
+  }
+
+  if ($PSCmdlet.ShouldProcess($Directory, "Add to the user PATH")) {
+    $updated = (@($Directory) + $entries) -join ";"
+    [Environment]::SetEnvironmentVariable("Path", $updated, "User")
+    $env:Path = "$Directory;$env:Path"
+    Write-Host "✅ Added to the user PATH: $Directory" -ForegroundColor Green
+    Write-Host "ℹ️  Open a new terminal for other shells to see it." -ForegroundColor Yellow
   }
 }
 
@@ -376,6 +404,23 @@ if (Test-Path -LiteralPath $ClaudeSource) {
       Write-Host "✅ Copied settings.json (copy, not link)" -ForegroundColor Green
     }
   }
+}
+
+# ---------- Put repo\bin on the PATH -----------------------------------------
+# The commands in bin\ are put on the PATH where they are, rather than linked
+# into a bin directory somewhere else: a symlink needs Developer Mode or an
+# elevated shell, and a PATH entry needs neither.
+#
+# One entry serves both shells. PowerShell resolves claude-sessions.ps1 when you
+# type `claude-sessions`, even though .PS1 is not in PATHEXT, and Git Bash reads
+# the Windows PATH and runs the extension-less Bash twin sitting next to it.
+# Linux is the other way round: scripts/setup.sh links the Bash halves into
+# ~/.local/bin, which the zsh config already puts on PATH.
+if (Test-Path -LiteralPath $BinSource) {
+  Write-Host "🔧 Putting $BinSource on the user PATH" -ForegroundColor Cyan
+  Add-UserPathEntry -Directory $BinSource
+} else {
+  Write-Warning "⚠️ Command folder not found: $BinSource (skipping)"
 }
 
 # ---------- Link GlazeWM and Zebar ------------------------------------------

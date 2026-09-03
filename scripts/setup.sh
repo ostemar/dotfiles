@@ -246,6 +246,8 @@ P10K_SRC="$REPO_ROOT/zsh/.p10k.zsh"
 P10K_DST="$HOME/.p10k.zsh"
 CLAUDE_SRC="$REPO_ROOT/claude"
 CLAUDE_DST="$HOME/.claude"
+BIN_SRC="$REPO_ROOT/bin"
+BIN_DST="$HOME/.local/bin"
 
 log "---------------------------------------------"
 log "Dotfiles setup (Linux)"
@@ -371,6 +373,39 @@ if [ -d "$CLAUDE_SRC" ]; then
             ok "Copied settings.json (copy, not link)"
         fi
     fi
+fi
+
+# ---------- Link repo/bin/* into ~/.local/bin --------------------------------
+# ~/.local/bin is put on PATH by zsh/.zshrc, so linking here is all it takes to
+# make these commands available. The .ps1 twins are for Windows PowerShell and
+# are skipped, the same way *.windows.* files are elsewhere in this script.
+if [ -d "$BIN_SRC" ]; then
+    info "Linking repo/bin/* into $BIN_DST"
+    if [ ! -d "$BIN_DST" ]; then
+        if [ $DRY_RUN -eq 1 ]; then
+            info "Would mkdir -p $BIN_DST"
+        else
+            mkdir -p -- "$BIN_DST"
+        fi
+    fi
+
+    shopt -s nullglob
+    for entry in "$BIN_SRC"/*; do
+        name="$(basename "$entry")"
+        case "$name" in
+        *.ps1)
+            info "Skip (Windows only): $name"
+            continue
+            ;;
+        esac
+        [ -f "$entry" ] || continue
+        # A checkout made on Windows can arrive without the executable bit.
+        if [ ! -x "$entry" ] && [ $DRY_RUN -eq 0 ]; then
+            chmod +x -- "$entry"
+        fi
+        link_path "$entry" "$BIN_DST/$name"
+    done
+    shopt -u nullglob
 fi
 
 ok "Setup complete."

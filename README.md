@@ -15,6 +15,8 @@ keep my setup consistent across systems.
 - **Claude Code** - Global `CLAUDE.md`, per-platform rules, personal skills
   and the Catppuccin Mocha theme, linked into `~/.claude`
 - **Git** - Configuration and tooling
+- **`claude-sessions`** - Lists Claude Code sessions from every project, newest
+  first and grouped by day. See [Commands in bin/](#-commands-in-bin)
 - Modern CLI tools (ripgrep, fzf, fd, bat, etc.)
 
 ### 🪟 Windows-Specific
@@ -91,6 +93,9 @@ keep my setup consistent across systems.
 
 ```
 dotfiles/
+├── bin/                    # Commands put on PATH by the setup scripts
+│   ├── claude-sessions    # Bash version (Linux, Git Bash)
+│   └── claude-sessions.ps1 # PowerShell version (Windows)
 ├── bat/                    # Bat (cat with syntax highlighting)
 │   ├── config             # Bat configuration with Catppuccin Mocha theme
 │   └── themes/
@@ -198,7 +203,7 @@ Add modules to `packages/powershell_modules.txt` and run the install script.
 | Script                | Description                                        | Options                             |
 | --------------------- | -------------------------------------------------- | ----------------------------------- |
 | `install_windows.ps1` | Installs packages and optionally runs setup        | `-RunSetup` to also create symlinks |
-| `setup.ps1`           | Creates symlinks for Neovim, WezTerm, PowerShell, and tool configs | `-WhatIf` for dry-run mode          |
+| `setup.ps1`           | Creates symlinks for Neovim, WezTerm, PowerShell, and tool configs; puts `bin\` on the user PATH | `-WhatIf` for dry-run mode          |
 | `setup_glazewm_windows.ps1` | GlazeWM/Zebar machine state: autostart, registry policies, elevation flag | `-SkipScheduledTask`, `-WhatIf` |
 
 ### Linux
@@ -206,7 +211,7 @@ Add modules to `packages/powershell_modules.txt` and run the install script.
 | Script             | Description                                                  | Options                               |
 | ------------------ | ------------------------------------------------------------ | ------------------------------------- |
 | `install_linux.sh` | Installs packages from `packages/linux.txt`                  | `--dry-run`, `--repo PATH`            |
-| `setup.sh`         | Creates symlinks for configs; sets zsh as default shell      | `--dry-run`, `--force`, `--repo PATH` |
+| `setup.sh`         | Creates symlinks for configs and for `bin/` commands into `~/.local/bin`; sets zsh as default shell | `--dry-run`, `--force`, `--repo PATH` |
 
 All scripts are **idempotent** and safe to re-run. They will:
 
@@ -250,6 +255,52 @@ Based on [LazyVim](https://www.lazyvim.org/) with additional customizations:
 - 📊 Line numbers and Git modifications display
 - 🔍 Custom syntax mappings for common file types
 - 📄 Smart paging with mouse support
+
+## 🧰 Commands in bin/
+
+Small commands that belong to this setup rather than to any one config file.
+Cross-platform ones ship as a pair, an extension-less Bash script and a `.ps1`
+twin, and the two are kept in sync down to producing the same output.
+
+They land on PATH differently per platform, for the reason each platform makes
+easiest:
+
+- **Linux**: `setup.sh` links the Bash halves into `~/.local/bin`, which
+  `zsh/.zshrc` already puts on PATH.
+- **Windows**: `setup.ps1` adds `<repo>\bin` itself to the user PATH. No
+  symlink, so no Developer Mode needed, and Git Bash inherits the Windows PATH,
+  so both shells find their own half. PowerShell resolves `claude-sessions` to
+  the `.ps1` even though `.PS1` is not in `PATHEXT`.
+
+Open a new terminal after the first setup run for a new PATH entry to show up.
+
+### `claude-sessions`
+
+Lists Claude Code sessions from **all** projects, newest first, grouped by day,
+the way the desktop app's sidebar does. Claude Code's own `claude --resume` and
+`/resume` only ever list the current project's sessions, which is no help when
+you remember the conversation but not which repo you had open.
+
+```bash
+claude-sessions              # the 40 most recent
+claude-sessions -n 100       # more of them
+claude-sessions -a           # all of them
+claude-sessions oberth       # only sessions whose project path or first prompt matches
+```
+
+```
+== 2026-09-03 Thu ==
+  09:51  C:\priv\dotfiles
+         781aef44-400d-4085-8ab5-69f75c58af53  Is there a way to make wezterm not scale the window ...
+```
+
+Resume one with `cd <the project dir shown>` then
+`claude --resume <session-id>`.
+
+It reads `~/.claude/projects/<encoded-cwd>/<session-id>.jsonl` directly: the
+file's mtime for when the session was last touched, its first real user message
+for what it was about. Needs `jq` on the Bash side; the PowerShell side has no
+dependencies.
 
 ## 🪟 GlazeWM and Zebar
 

@@ -20,6 +20,10 @@
 .bashrc text eol=lf
 .bash_profile text eol=lf
 
+# Commands in bin/ carry no extension, and a CRLF in the shebang line makes
+# Linux refuse to run them at all. The .ps1 twins are matched by the rule below.
+bin/* text eol=lf
+
 # PowerShell scripts must use CRLF (Windows line endings)
 *.ps1 text eol=crlf
 *.psm1 text eol=crlf

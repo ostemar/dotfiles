@@ -1,0 +1,205 @@
+#!/usr/bin/env bash
+# List Claude Code sessions across ALL projects, newest first, grouped by day.
+#
+# Claude Code itself only lists the sessions of the current project
+# (`claude --resume`, `/resume`), which is useless when you remember a
+# conversation but not which repo you had open at the time. The transcripts are
+# all on disk under ~/.claude/projects/<encoded-cwd>/<session-id>.jsonl, so this
+# reads them directly: mtime for "when", the first real user prompt for "what".
+#
+# The PowerShell twin, bin/claude-sessions.ps1, does the same thing for pwsh.
+# Keep the two in sync when changing behaviour.
+set -eu
+
+DEFAULT_LIMIT=40
+PROMPT_WIDTH=110
+# Session files are passed to jq in batches, to stay well under the command
+# line length limit once a machine has thousands of sessions.
+BATCH=60
+
+usage() {
+    cat <<EOF
+Usage: claude-sessions [-n LIMIT | -a] [PATTERN]
+
+List Claude Code sessions from every project, newest first, grouped by day.
+
+Options:
+  -n LIMIT   Show at most LIMIT sessions (default $DEFAULT_LIMIT)
+  -a         Show all sessions
+  -h         This help
+
+Arguments:
+  PATTERN    Case-insensitive filter on project path or first prompt
+
+Resume one with:
+  cd <the project dir shown> && claude --resume <session-id>
+EOF
+}
+
+limit=$DEFAULT_LIMIT
+pattern=""
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+    -n)
+        limit="${2:?-n needs a number}"
+        shift 2
+        ;;
+    -a)
+        limit=1000000
+        shift
+        ;;
+    -h | --help)
+        usage
+        exit 0
+        ;;
+    -*)
+        printf "❌ Unknown option: %s\n" "$1" >&2
+        usage >&2
+        exit 1
+        ;;
+    *)
+        pattern="$1"
+        shift
+        ;;
+    esac
+done
+
+root="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
+if [ ! -d "$root" ]; then
+    printf "❌ No Claude Code sessions found at %s\n" "$root" >&2
+    exit 1
+fi
+if ! command -v jq >/dev/null 2>&1; then
+    printf "❌ jq is required but is not on PATH\n" >&2
+    exit 1
+fi
+
+# ---------- Session files, newest first --------------------------------------
+# mtime is last activity, which is the order the desktop app's sidebar uses;
+# the first timestamp inside a file would instead order by when it started.
+#
+# -maxdepth 2 keeps this to the session transcripts themselves. Subagent
+# transcripts live one level deeper, in <session-id>/subagents/agent-*.jsonl,
+# and are part of a session rather than sessions of their own.
+#
+# Sorted by mtime, then by session id so that the many files sharing a
+# timestamp (a bulk copy, a restore) come out in a stable order rather than
+# whatever order the filesystem hands them over in.
+mapfile -t rows < <(
+    find "$root" -maxdepth 2 -name '*.jsonl' -printf '%T@\t%f\t%p\n' |
+        sort -t"$(printf '\t')" -k1,1rn -k2,2
+)
+if [ "${#rows[@]}" -eq 0 ]; then
+    printf "(no sessions found in %s)\n" "$root"
+    exit 0
+fi
+
+paths=()
+for row in "${rows[@]}"; do paths+=("${row##*$'\t'}"); done
+
+# ---------- First real prompt of each session --------------------------------
+# One jq run for every file it can fit on a command line, rather than one per
+# file: over a few hundred transcripts that is the difference between four
+# seconds and a minute, since process startup dominates under Git Bash.
+#
+# Skipped: subagent sidechains (isSidechain), tool results and other structured
+# content (content is an array, not a string), and the wrapper text Claude Code
+# injects for slash commands and memory reminders.
+prompts="$(mktemp)"
+trap 'rm -f "$prompts"' EXIT
+
+jq_prog='
+[ inputs
+  | select(.type == "user")
+  | select(.isSidechain != true)
+  | { f: input_filename,
+      c: (.cwd // "?"),
+      t: (.message.content
+          | if type == "string" then .
+            elif type == "array" then
+              # A prompt sent with an image or other attachment arrives as
+              # content blocks; the text blocks are the prompt. Tool results
+              # are blocks too, and collapse to "" here, which is the point.
+              [ .[] | select(type == "object" and .type == "text") | .text ] | join(" ")
+            else "" end
+          # Cut before anything looks at the text. jq gsub is quadratic in the
+          # length of the subject, and a prompt with a pasted file in it runs to
+          # megabytes: collapsing one such message whole cost five minutes.
+          | .[0:800]) }
+  | select(.t | test("^<(local-command|command-name|user-memory)") | not)
+  | select(.t | test("[^[:space:]]"))
+  | { f, c, p: (.t | gsub("[[:space:]]+"; " ") | .['"0:$PROMPT_WIDTH"'] | sub("^ +"; "") | sub(" +$"; "")) }
+]
+| group_by(.f)[]
+| .[0]
+| .f + "\t" + .c + "\t" + .p
+'
+
+# ---------- Join, filter, cut to the limit -----------------------------------
+select_rows() {
+    printf '%s\n' "${rows[@]}" | awk -F'\t' \
+        -v prompts="$prompts" -v pattern="$pattern" -v limit="$limit" '
+        # Both sides name the same file differently under Git Bash: find says
+        # /c/Users/..., jq says C:/Users/.... The last two components,
+        # <project-dir>/<session-id>.jsonl, are identical either way and are
+        # unique on their own, so they are the join key.
+        function session_key(p,   parts, n) {
+            gsub(/\\/, "/", p)
+            n = split(p, parts, "/")
+            return (n >= 2) ? parts[n - 1] "/" parts[n] : p
+        }
+        BEGIN {
+            while ((getline line < prompts) > 0) {
+                if (split(line, f, "\t") < 3) continue
+                key = session_key(f[1])
+                if (key in cwd_of) continue
+                cwd_of[key] = f[2]
+                prompt_of[key] = f[3]
+            }
+            needle = tolower(pattern)
+        }
+        {
+            path = session_key($3)
+            if (!(path in cwd_of)) next
+            if (needle != "" && index(tolower(cwd_of[path] " " prompt_of[path]), needle) == 0) next
+            id = path
+            sub(/.*\//, "", id)
+            sub(/\.jsonl$/, "", id)
+            printf "%s\t%s\t%s\t%s\n", $1, id, cwd_of[path], prompt_of[path]
+            if (++shown >= limit) exit
+        }'
+}
+
+# Batches are read newest-first and stop as soon as enough sessions have
+# matched, so the common "what did I do lately" call touches a fraction of the
+# transcripts. A filter that matches nothing, or -a, still reads them all.
+total=${#paths[@]}
+i=0
+matched=0
+while [ "$i" -lt "$total" ] && [ "$matched" -lt "$limit" ]; do
+    jq -rn "$jq_prog" "${paths[@]:i:BATCH}" 2>/dev/null >>"$prompts" || true
+    i=$((i + BATCH))
+    matched=$(select_rows | wc -l)
+done
+
+# ---------- Print, with a header per day -------------------------------------
+# printf's %(...)T is a bash builtin: formatting the dates here rather than
+# shelling out to date(1) keeps this loop free of extra processes.
+day=""
+while IFS=$'\t' read -r mtime id cwd prompt; do
+    epoch="${mtime%.*}"
+    printf -v this_day '%(%Y-%m-%d %a)T' "$epoch"
+    printf -v clock '%(%H:%M)T' "$epoch"
+    if [ "$this_day" != "$day" ]; then
+        day="$this_day"
+        printf '\n== %s ==\n' "$day"
+    fi
+    printf '  %s  %s\n         %s  %s\n' "$clock" "$cwd" "$id" "$prompt"
+done < <(select_rows)
+
+if [ -z "$day" ]; then
+    printf '(no sessions matched)\n'
+else
+    printf '\n'
+fi
