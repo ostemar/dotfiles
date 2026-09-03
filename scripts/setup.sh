@@ -355,6 +355,11 @@ if [ -d "$CLAUDE_SRC" ]; then
         link_path "$CLAUDE_SRC/CLAUDE.md" "$CLAUDE_DST/CLAUDE.md"
     fi
 
+    # Referenced by "statusLine" in settings.json as $HOME/.claude/statusline.js.
+    if [ -f "$CLAUDE_SRC/statusline.js" ]; then
+        link_path "$CLAUDE_SRC/statusline.js" "$CLAUDE_DST/statusline.js"
+    fi
+
     for claude_dir in rules skills agents output-styles themes workflows; do
         link_claude_entries "$CLAUDE_SRC/$claude_dir" "$CLAUDE_DST/$claude_dir"
     done

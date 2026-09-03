@@ -15,6 +15,7 @@ who do not have this repo. Symlinks do the same job here with no metadata.
 | `skills/<name>/SKILL.md` | `~/.claude/skills/<name>/` | listed at startup, body loads on `/<name>` |
 | `agents/<name>.md` | `~/.claude/agents/` | when Claude delegates or you @-mention it |
 | `themes/*.json` | `~/.claude/themes/` | session start, selected by `theme` in settings |
+| `statusline.js` | `~/.claude/statusline.js` | every status line render (see below) |
 | `settings.json` | copied, not linked | session start (see below) |
 
 `~/.claude` also holds runtime state Claude Code writes for itself
@@ -44,6 +45,24 @@ diff ~/.claude/settings.json claude/settings.json
 ```
 
 Never commit `~/.claude/.credentials.json`.
+
+## Status line
+
+`settings.json` points `statusLine` at `node "$HOME/.claude/statusline.js"`.
+Claude Code runs that command through the shell, Git Bash on Windows and the
+login shell on Linux, so `$HOME` expands on both and the one string needs no
+per-machine path.
+
+The script pipes the status line payload to `ccusage statusline` and drops the
+cost segments before printing, leaving the model and the context usage:
+
+```
+🤖 Opus 5 | 🧠 59,180 (6%)
+```
+
+ccusage has no flag to hide those segments, hence the wrapper. It needs `node`
+and `npx` on PATH, and it prints nothing at all if ccusage fails, which leaves
+an empty status line rather than an error in the bar.
 
 ## Hooks
 

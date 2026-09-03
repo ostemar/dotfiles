@@ -385,6 +385,17 @@ if (Test-Path -LiteralPath $ClaudeSource) {
     }
   }
 
+  # Referenced by "statusLine" in settings.json as $HOME/.claude/statusline.js.
+  $StatusLineSource = Join-Path $ClaudeSource "statusline.js"
+  if (Test-Path -LiteralPath $StatusLineSource) {
+    try {
+      New-SafeSymlink -LinkPath (Join-Path $ClaudeTarget "statusline.js") -TargetPath $StatusLineSource
+      Write-Host "✅ Linked statusline.js → $ClaudeTarget" -ForegroundColor Green
+    } catch {
+      Write-Warning "⚠️ statusline.js link failed: $($_.Exception.Message)"
+    }
+  }
+
   foreach ($name in @("rules", "skills", "agents", "output-styles", "themes", "workflows")) {
     Install-ClaudeEntries -SourceDir (Join-Path $ClaudeSource $name) `
                           -TargetDir (Join-Path $ClaudeTarget $name)
