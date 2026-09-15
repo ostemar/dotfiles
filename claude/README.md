@@ -83,3 +83,9 @@ loading it on its own. Then re-run the setup script for this platform.
 
 A skill body loads only when the skill is invoked. Instructions that must apply
 to every session belong in `rules/` instead.
+
+## Renaming or removing an entry
+
+Re-run the setup script. Before linking, it removes each link in
+`~/.claude/<dir>` that points into `claude/<dir>` at an entry that no longer
+exists. Links pointing anywhere else are left alone.

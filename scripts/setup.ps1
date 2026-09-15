@@ -13,6 +13,7 @@
   - Safe to re-run. Cleans existing targets when necessary.
   - Links directories for nvim and bat; files for PowerShell.
   - If symlink creation fails (no admin / Developer Mode), shows a helpful hint.
+  - Removes $HOME\.claude links whose repo entry was renamed or deleted.
   - Runs 'bat cache --build' after linking bat config (if bat is installed).
 
 .PARAMETER RepoRoot
@@ -214,6 +215,38 @@ function Install-ClaudeEntries {
   }
 }
 
+function Remove-StaleClaudeLinks {
+  <#
+    Remove links in $HOME\.claude\<dir> that point into the repo claude\<dir> at
+    an entry that no longer exists. Renaming, moving, or deleting a repo entry
+    leaves one behind. Links pointing anywhere else were not made by this script
+    and are left alone.
+  #>
+  param(
+    [Parameter(Mandatory)][string]$SourceDir,
+    [Parameter(Mandatory)][string]$TargetDir
+  )
+
+  if (-not (Test-Path -LiteralPath $TargetDir)) { return }
+
+  $sourcePrefix = $SourceDir.TrimEnd("\") + "\"
+  foreach ($entry in Get-ChildItem -LiteralPath $TargetDir -Force) {
+    if (-not $entry.LinkType) { continue }
+    $target = @($entry.Target)[0]
+    if (-not $target -or -not $target.StartsWith($sourcePrefix, [System.StringComparison]::OrdinalIgnoreCase)) { continue }
+    if (Test-Path -LiteralPath $target) { continue }
+
+    if ($PSCmdlet.ShouldProcess($entry.FullName, "Remove stale link → $target")) {
+      try {
+        Remove-Item -LiteralPath $entry.FullName -Force -ErrorAction Stop
+        Write-Host "🧹 Removed stale link $($entry.Name) → $target" -ForegroundColor Yellow
+      } catch {
+        Write-Warning "⚠️ Failed to remove stale link $($entry.Name): $($_.Exception.Message)"
+      }
+    }
+  }
+}
+
 function Add-UserPathEntry {
   <#
     Put a directory on the user PATH if it is not already there.
@@ -397,6 +430,8 @@ if (Test-Path -LiteralPath $ClaudeSource) {
   }
 
   foreach ($name in @("rules", "skills", "agents", "output-styles", "themes", "workflows")) {
+    Remove-StaleClaudeLinks -SourceDir (Join-Path $ClaudeSource $name) `
+                            -TargetDir (Join-Path $ClaudeTarget $name)
     Install-ClaudeEntries -SourceDir (Join-Path $ClaudeSource $name) `
                           -TargetDir (Join-Path $ClaudeTarget $name)
   }

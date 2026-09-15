@@ -7,6 +7,7 @@ set -euo pipefail
 # - Links bat config to ~/.config/bat
 # - Links ~/.zshrc from repo/zsh/.zshrc
 # - Links repo/claude/* into ~/.claude (see claude/README.md)
+# - Removes ~/.claude links whose repo entry was renamed or deleted
 # - Changes default shell to zsh (if zsh is installed)
 # - Idempotent: backs up existing paths unless --force
 # - Supports --dry-run and --repo
@@ -146,6 +147,38 @@ link_claude_entries() {
             ;;
         esac
         link_path "$entry" "$dst/$name"
+    done
+    shopt -u nullglob dotglob
+}
+
+prune_stale_claude_links() {
+    # $1 = repo claude/<dir>, $2 = ~/.claude/<dir>
+    #
+    # Remove links in $2 that point into $1 at an entry that no longer exists.
+    # Renaming, moving, or deleting a repo entry leaves one behind. Links
+    # pointing anywhere else were not made by this script and are left alone.
+    local src="$1"
+    local dst="$2"
+
+    [ -d "$dst" ] || return 0
+
+    shopt -s nullglob dotglob
+    local linkp target
+    for linkp in "$dst"/*; do
+        if [ ! -L "$linkp" ] || [ -e "$linkp" ]; then
+            continue
+        fi
+        target="$(readlink "$linkp")"
+        case "$target" in
+        "$src"/*) ;;
+        *) continue ;;
+        esac
+        if [ $DRY_RUN -eq 1 ]; then
+            info "Would remove stale link: $linkp -> $target"
+        else
+            rm -- "$linkp"
+            ok "Removed stale link: $linkp -> $target"
+        fi
     done
     shopt -u nullglob dotglob
 }
@@ -361,6 +394,7 @@ if [ -d "$CLAUDE_SRC" ]; then
     fi
 
     for claude_dir in rules skills agents output-styles themes workflows; do
+        prune_stale_claude_links "$CLAUDE_SRC/$claude_dir" "$CLAUDE_DST/$claude_dir"
         link_claude_entries "$CLAUDE_SRC/$claude_dir" "$CLAUDE_DST/$claude_dir"
     done
 
