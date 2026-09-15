@@ -80,3 +80,6 @@ mkdir -p claude/skills/my-skill
 `claude/skills/my-skill/SKILL.md` needs only a `description`; the directory name
 becomes `/my-skill`. Add `disable-model-invocation: true` to keep Claude from
 loading it on its own. Then re-run the setup script for this platform.
+
+A skill body loads only when the skill is invoked. Instructions that must apply
+to every session belong in `rules/` instead.
