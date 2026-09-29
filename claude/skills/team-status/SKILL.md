@@ -1,11 +1,11 @@
 ---
 name: team-status
 description:
-  "Morning status for teams Awesome and Brilliant: Jira work in flight, PR and
-  review state, full-validation freshness, branch CI, develop drift and
-  conflicts, what merged, and what is live on QA and prod. Use before the
-  dailies or when asked what the teams are working on, how PRs are doing, or
-  which branches are red."
+  "Morning status for teams Awesome and Brilliant: Linear work in flight (plus
+  legacy Jira), PR and review state, full-validation freshness, branch CI,
+  develop drift and conflicts, what merged, and what is live on QA and prod. Use
+  before the dailies or when asked what the teams are working on, how PRs are
+  doing, or which branches are red."
 metadata:
   short-description: "Team status before the dailies"
 ---
@@ -55,7 +55,38 @@ History strings read newest first: `S` succeeded, `F` failed, `P` partially
 succeeded, `C` canceled. `commitsSince` / `pushesSince` count what landed on the
 branch after that run.
 
-**Tracker** (Jira today; this is the only section to change for Linear):
+**Tracker**: Linear first. Jira is legacy: keep reading it until the teams have
+no in-flight work there, then delete the Jira block.
+
+_Linear_ (`RPT-<n>`, all in team Reporting). The dev teams are labels in the
+"Team" group (`Awesome`, `Brilliant`, `Integration`) and `label` takes one name,
+so query each team separately. Use `mcp__linear-server__list_issues` with
+`team: "Reporting"`, `limit: 250` and fields
+`id, title, status, statusType, assignee, updatedAt, startedAt, completedAt, canceledAt, labels, parentId, url`.
+There is no top-level filter: drop rows with a `parentId` (sub-issues are their
+parent's to-do list; one top-level issue is one branch and one PR). Page with
+`cursor` when a call returns `limit` rows.
+
+1. In flight, per team: `label: "<Awesome|Brilliant>", state: "started"` (In
+   Progress and In Review).
+2. Ready queue size, per team: `label: "<team>", state: "Todo"`; count the rows,
+   there is no total.
+3. Moved in the window, per team:
+   `label: "<team>", updatedAt: "<since yyyy-MM-dd>"`. There is no
+   status-history filter and any edit moves `updatedAt`: keep rows whose
+   `startedAt`, `completedAt` or `canceledAt` is in the window, plus In Review
+   rows (that move has no timestamp of its own).
+4. Stuck: no call. Query 1 rows with `updatedAt` older than 7 days (any edit
+   resets it, so this finds fewer than the Jira query).
+5. Sub-issues being worked, one call per query 1 key:
+   `parentId: "<key>", state: "started"`.
+
+Status names in the signals below are Jira's. For RPT read Developing as In
+Progress, Ready for Review as In Review, Ready for development as Todo, Closed
+as Done or Canceled. PRs open early and In Review is rare, so take review state
+from the PR, not the status.
+
+_Jira_ (legacy, `OSR-<n>`):
 
 The "Team." field (`customfield_23690`) carries the team; search results do not
 return it, so query each team separately. Search results also omit `parent` and
@@ -78,9 +109,10 @@ the PR link field, which is why branches are joined by key. Use
    what, and WIP per person):
    `project = OSR AND parent in (<keys>) AND status in ("In Progress", Verification)`
 
-Page when `total_count` exceeds what came back. An in-flight item last updated
-more than 180 days ago is a zombie: count it under hygiene, never in the team
-section.
+Page when `total_count` exceeds what came back.
+
+In either tracker, an in-flight item last updated more than 180 days ago is a
+zombie: count it under hygiene, never in the team section.
 
 ## 2) Join
 
@@ -172,7 +204,7 @@ Formatting rules (the reader skims; flat prose does not work):
 - **Never a bare number.** A key or PR number means nothing to the reader. Every
   mention of a work item, PR or branch leads with what it is, and the links
   follow in parentheses:
-  `idle ETL agent monitor ([OSR-19576](url), [PR 6842](url))`.
+  `idle ETL agent monitor ([RPT-12](url), [PR 6842](url))`.
   - Short name: 2 to 5 words from the ticket summary, or the PR title when there
     is no ticket. Keep it recognizable, drop filler and series markers:
     "AngularJS retirement: user and org context [3 / 7]" becomes "AngularJS user
@@ -181,7 +213,8 @@ Formatting rules (the reader skims; flat prose does not work):
   - Use the same short name for an item every time it appears in the output.
   - This applies in lists of keys too: "Closed: blob retry logging
     ([OSR-19561](url)), SDOP script for models ([OSR-19575](url))".
-  - Jira link: `https://jira.visma.com/browse/<key>`; PR link: the PR `url`.
+  - Links: RPT keys `https://linear.app/scarlet/issue/<key>`, OSR keys
+    `https://jira.visma.com/browse/<key>`, PRs the PR `url`.
 - An item belongs to the team of its ticket. An item with no team (develop red,
   a shared pipeline) goes under Shared, and also into both "Raise in the daily"
   lists when it blocks work.
@@ -200,15 +233,15 @@ Template:
 2. ...
 
 **In flight**
-- **Idle ETL agent monitor** ([OSR-19576](url)): Pontus, Ready for Review
+- **Idle ETL agent monitor** ([RPT-12](url)): Pontus, In Review
   - PR ([6842](url)): waiting on Pontus, 14 open threads
   - Validation: never run, due now
   - Branch: behind 3 PRs, deployed on QA2
 - ...
 
 **Moved since Fri**
-- Closed: blob retry logging ([OSR-19561](url)), SDOP script for models ([OSR-19575](url))
-- To review: idle ETL agent monitor ([OSR-19576](url))
+- Done: blob retry logging ([RPT-7](url)), SDOP script for models ([OSR-19575](url))
+- To review: idle ETL agent monitor ([RPT-12](url))
 
 ## Brilliant
 

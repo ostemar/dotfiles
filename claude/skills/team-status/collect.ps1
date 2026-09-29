@@ -6,7 +6,8 @@
     Read-only: fetches origin, then reads branches, pull requests, PR validation
     history, branch CI, develop/nightly pipeline health, recently merged PRs and
     release deployments. Never queues builds, pushes, or touches the working tree.
-    Jira data is not collected here; the team-status skill joins it in by key.
+    Tracker data (Linear RPT-n, legacy Jira OSR-n) is not collected here; the
+    team-status skill joins it in by the keys found in branch names and PR titles.
 
 .EXAMPLE
     pwsh -NoProfile -File ~/.claude/skills/team-status/collect.ps1 -OutFile team-status.json
@@ -60,6 +61,20 @@ $releasePipelines = [ordered]@{
     warehouse = 86; db = 55; designer = 83
 }
 $botAuthors = @('OSRAgent', 'CodeRabbit', 'Microsoft.VisualStudio.Services.TFS', 'Project Collection Build Service (onestopreporting)')
+
+# Uppercase issue keys in a branch name or PR title: Linear RPT-<n> and legacy
+# Jira OSR-<n>. "osr-123-456" names several OSR items; RPT gets no such form,
+# as its short numbers are indistinguishable from a slug starting with a digit.
+function Get-IssueKeys([string]$Text) {
+    @(
+        foreach ($m in [regex]::Matches($Text, '(?i)\brpt-(\d+)')) { "RPT-$($m.Groups[1].Value)" }
+        foreach ($m in [regex]::Matches($Text, '(?i)osr-(\d{4,6})((?:-\d{4,6})*)')) {
+            "OSR-$($m.Groups[1].Value)"
+            $m.Groups[2].Value -split '-' | Where-Object { $_ } | ForEach-Object { "OSR-$_" }
+        }
+    ) | Select-Object -Unique
+}
+$getIssueKeys = ${function:Get-IssueKeys}.ToString()
 
 if (-not $Since) {
     $Since = (Get-Date).Date.AddDays(-1)
@@ -130,6 +145,7 @@ $branches = $branchNames | ForEach-Object -ThrottleLimit 12 -Parallel {
     $name = $_
     $ref = "origin/$name"
     Set-Location $using:repoRoot
+    ${function:Get-IssueKeys} = $using:getIssueKeys
     $count = { param($range) [int](git rev-list --count @($range -split ' ') 2>$null) }
 
     $mergeBase = (git merge-base origin/develop $ref).Trim()
@@ -178,14 +194,9 @@ $branches = $branchNames | ForEach-Object -ThrottleLimit 12 -Parallel {
         }
     }
 
-    $keys = [regex]::Matches($name, '(?i)osr-(\d{4,6})((?:-\d{4,6})*)') | ForEach-Object {
-        "OSR-$($_.Groups[1].Value)"
-        $_.Groups[2].Value -split '-' | Where-Object { $_ } | ForEach-Object { "OSR-$_" }
-    }
-
     [pscustomobject]@{
         name             = $name
-        keys             = @($keys | Select-Object -Unique)
+        keys             = @(Get-IssueKeys $name)
         author           = if ($authors) { $authors[0].Name } else { $lastAuthor }
         lastCommitAt     = $lastDate
         lastCommitBy     = $lastAuthor
@@ -253,7 +264,7 @@ $prs = foreach ($pr in $activePrs) {
         author           = $pr.createdBy.displayName
         isDraft          = $pr.isDraft
         source           = $source
-        keys             = @(@($branch.keys) + @([regex]::Matches($pr.title, '(?i)OSR-\d{4,6}') | ForEach-Object { $_.Value.ToUpper() }) | Select-Object -Unique)
+        keys             = @(@($branch.keys) + @(Get-IssueKeys $pr.title) | Select-Object -Unique)
         createdAt        = $pr.creationDate
         ageDays          = [int]($now - [datetime]$pr.creationDate).TotalDays
         mergeStatus      = $pr.mergeStatus
@@ -356,7 +367,7 @@ $merged = foreach ($pr in $mergedPrs) {
         title    = $pr.title
         author   = $pr.createdBy.displayName
         closedAt = $pr.closedDate
-        keys     = @([regex]::Matches("$($pr.title) $($pr.sourceRefName)", '(?i)OSR-\d{4,6}') | ForEach-Object { $_.Value.ToUpper() } | Select-Object -Unique)
+        keys     = @(Get-IssueKeys "$($pr.title) $($pr.sourceRefName)")
     }
 }
 
