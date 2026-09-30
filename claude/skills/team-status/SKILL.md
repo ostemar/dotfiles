@@ -94,17 +94,20 @@ the PR link field, which is why branches are joined by key. Use
 `mcp__jira__jira_search_jql` with fields `summary, status, assignee, updated`.
 `<inflight>` is
 `status in (Developing, "Ready for Review", "Ready for Test", "Ready for Release")`.
+`<unmigrated>` is `(labels is EMPTY OR labels != linear)`: migrated items carry
+the `linear` label and are reported from Linear, so they must not count twice
+(`!=` alone would also drop items with no labels).
 
 1. In flight, per team (top-level items only; the open-everything query drowns
    in placeholder "Code review"/"Test" sub-tasks and years-old leftovers):
-   `project = OSR AND "Team." = <Awesome|Brilliant> AND issuetype not in subTaskIssueTypes() AND <inflight>`
+   `project = OSR AND "Team." = <Awesome|Brilliant> AND issuetype not in subTaskIssueTypes() AND <inflight> AND <unmigrated>`
 2. Ready queue size, per team (`max_results` 1, read `total_count`):
-   `project = OSR AND "Team." = <team> AND issuetype not in subTaskIssueTypes() AND status = "Ready for development"`
+   `project = OSR AND "Team." = <team> AND issuetype not in subTaskIssueTypes() AND status = "Ready for development" AND <unmigrated>`
 3. Moved in the window, both teams. Use `CHANGED DURING`;
    `CHANGED AFTER "<date>"` silently returns nothing through this connector:
-   `project = OSR AND "Team." in (Awesome, Brilliant) AND status CHANGED DURING ("<since yyyy-MM-dd>", now())`
+   `project = OSR AND "Team." in (Awesome, Brilliant) AND status CHANGED DURING ("<since yyyy-MM-dd>", now()) AND <unmigrated>`
 4. Stuck:
-   `project = OSR AND "Team." in (Awesome, Brilliant) AND issuetype not in subTaskIssueTypes() AND <inflight> AND NOT status CHANGED AFTER -7d`
+   `project = OSR AND "Team." in (Awesome, Brilliant) AND issuetype not in subTaskIssueTypes() AND <inflight> AND NOT status CHANGED AFTER -7d AND <unmigrated>`
 5. Sub-tasks being worked under the query 1 keys (who is reviewing or testing
    what, and WIP per person):
    `project = OSR AND parent in (<keys>) AND status in ("In Progress", Verification)`
