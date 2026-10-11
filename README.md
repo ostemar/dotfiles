@@ -164,8 +164,8 @@ apt  package-name           # APT packages
 snap package-name --classic # Snap packages (skipped on WSL)
 flat app.id                 # Flatpak apps (skipped on WSL)
 dev  toolchain [args...]    # Upstream installers (rust, go, node, neovim,
-                            #   claude, wezterm, lazygit, glow) -- used
-                            #   where apt lags or has no package at all.
+                            #   claude, wezterm, lazygit, glow, godot) --
+                            #   used where apt lags or has no package at all.
                             #   'dev rust' takes extra rustup targets, e.g.
                             #   'dev rust wasm32-unknown-unknown'
 cargo crate [--flags]       # cargo install --locked <crate> (needs 'dev rust')

@@ -687,6 +687,119 @@ install_difftastic() {
     run "rm -f '/tmp/${tarball}'"
 }
 
+install_godot() {
+    local arch g_arch want want_ver current zip url sums_url want_sha dist_base d
+
+    # GUI editor; there is nothing for it to draw on under WSL.
+    if [ $WSL -eq 1 ]; then
+        warn "dev: skipping godot on WSL"
+        return
+    fi
+
+    arch="$(dpkg --print-architecture 2>/dev/null || echo amd64)" # amd64 | arm64
+    case "$arch" in
+    amd64) g_arch="x86_64" ;;
+    arm64) g_arch="arm64" ;;
+    *)
+        warn "dev: unsupported arch '$arch' for godot; skipping"
+        return
+        ;;
+    esac
+
+    # Godot tags the bare version together with its release stage and no
+    # leading 'v', e.g. '4.7.2-stable' -- unlike every other release fetched
+    # here. Betas and RCs are published as GitHub prereleases, so
+    # /releases/latest is the newest stable and needs no filtering.
+    want="$(curl -fsSL https://api.github.com/repos/godotengine/godot/releases/latest 2>/dev/null |
+        grep -m1 '"tag_name"' | sed -E 's/.*"([0-9][^"]*)".*/\1/' || true)"
+    if [ -z "$want" ]; then
+        warn "dev: could not determine latest Godot version (offline/rate-limited?); skipping godot"
+        return
+    fi
+
+    # 'godot --version' prints 4.7.2.stable.official.<hash>: dots where the tag
+    # has a dash, plus a build suffix. Normalise both ends before comparing.
+    # A locally built editor says '.custom_build' instead, which will not match
+    # and so gets replaced -- which is the right answer for a machine that is
+    # meant to be tracking upstream stable.
+    want_ver="${want//-/.}"
+    if [ -x /opt/godot/godot ]; then
+        current="$(/opt/godot/godot --version 2>/dev/null | tr -d '\r' | head -1)"
+        current="${current%%.official*}"
+        if [ "$current" = "$want_ver" ]; then
+            ok "dev: godot already installed ($current)"
+            return
+        fi
+        info "dev: updating godot (${current:-unknown} -> $want_ver)"
+    else
+        info "dev: installing godot $want_ver"
+    fi
+
+    # Ubuntu's 'godot-4' snap is a third-party repack, not a Godot Foundation
+    # build, and it trails upstream. Its editor settings and project list sit
+    # under ~/snap/godot-4/current, which the real binary never looks at, so
+    # carry them over before the snap goes. 'snap remove' still leaves a
+    # snapshot behind ('snap saved' / 'snap restore') if this misses something.
+    if command -v snap >/dev/null 2>&1 && snap_installed godot-4; then
+        for d in .config/godot .local/share/godot; do
+            if [ -d "$HOME/snap/godot-4/current/$d" ] && [ ! -e "$HOME/$d" ]; then
+                info "dev: migrating ~/snap/godot-4/current/$d -> ~/$d"
+                run "mkdir -p '$HOME/$(dirname "$d")'"
+                run "cp -a '$HOME/snap/godot-4/current/$d' '$HOME/$d'"
+            fi
+        done
+        info "dev: removing the godot-4 snap (replaced by the upstream build)"
+        run "sudo snap remove godot-4"
+    fi
+
+    zip="Godot_v${want}_linux.${g_arch}.zip"
+    url="https://github.com/godotengine/godot/releases/download/${want}/${zip}"
+    sums_url="https://github.com/godotengine/godot/releases/download/${want}/SHA512-SUMS.txt"
+    # Every release ships SHA512-SUMS.txt beside the assets. Cheap, and this
+    # binary goes straight onto PATH, so a truncated download is worth catching.
+    want_sha="$(curl -fsSL "$sums_url" 2>/dev/null | awk -v f="$zip" '$2 == f {print $1}' || true)"
+
+    run "curl -fsSL '$url' -o '/tmp/${zip}'"
+    if [ $DRY_RUN -eq 0 ]; then
+        if [ -z "$want_sha" ]; then
+            warn "dev: no SHA512-SUMS entry for $zip; installing unverified"
+        elif ! printf "%s  %s\n" "$want_sha" "/tmp/${zip}" | sha512sum -c - >/dev/null 2>&1; then
+            err "dev: godot checksum mismatch for $zip; refusing to install"
+            rm -f "/tmp/${zip}"
+            return
+        fi
+    fi
+
+    # /opt plus a symlink, the same shape as neovim above: one versionless path
+    # on PATH and the tree replaced wholesale on an upgrade. The zip holds a
+    # single version-named binary, hence the rename.
+    run "sudo rm -rf /opt/godot"
+    run "sudo mkdir -p /opt/godot"
+    run "sudo unzip -q -o -j '/tmp/${zip}' -d /opt/godot"
+    run "sudo mv '/opt/godot/Godot_v${want}_linux.${g_arch}' /opt/godot/godot"
+    run "sudo chmod 755 /opt/godot/godot"
+    run "sudo ln -sf /opt/godot/godot /usr/local/bin/godot"
+    run "rm -f '/tmp/${zip}'"
+
+    # The zip is a bare binary: no launcher, no icon, no association for
+    # project.godot -- all of which the snap did provide. Upstream keeps those
+    # files in-tree, so take them from the same tag instead of writing our own.
+    # 'Icon=godot' in the .desktop resolves to the hicolor path below, and the
+    # MIME xml is what makes the .desktop's MimeType line mean anything.
+    dist_base="https://raw.githubusercontent.com/godotengine/godot/${want}"
+    run "sudo mkdir -p /usr/local/share/applications /usr/local/share/icons/hicolor/128x128/apps /usr/local/share/mime/packages"
+    run "sudo curl -fsSL '${dist_base}/misc/dist/linux/org.godotengine.Godot.desktop' -o /usr/local/share/applications/org.godotengine.Godot.desktop"
+    run "sudo curl -fsSL '${dist_base}/main/app_icon.png' -o /usr/local/share/icons/hicolor/128x128/apps/godot.png"
+    run "sudo curl -fsSL '${dist_base}/misc/dist/linux/org.godotengine.Godot.xml' -o /usr/local/share/mime/packages/org.godotengine.Godot.xml"
+    run "sudo update-desktop-database /usr/local/share/applications >/dev/null 2>&1 || true"
+    run "sudo update-mime-database /usr/local/share/mime >/dev/null 2>&1 || true"
+    run "sudo gtk-update-icon-cache -f -t /usr/local/share/icons/hicolor >/dev/null 2>&1 || true"
+
+    # Export templates are a ~1GB per-version download and the editor fetches
+    # them itself (Editor > Manage Export Templates), so they are deliberately
+    # not handled here -- an upgrade would otherwise re-pull them every time.
+}
+
 install_rustdesk() {
     local arch rd_arch want current deb url
 
@@ -1302,6 +1415,7 @@ if [ "${#DEV_LINES[@]}" -gt 0 ]; then
         glow) install_glow ;;
         rustdesk) install_rustdesk ;;
         difftastic) install_difftastic ;;
+        godot) install_godot ;;
         chrome) install_chrome ;;
         *) warn "Unknown dev tool '$tool' in line: dev $line" ;;
         esac

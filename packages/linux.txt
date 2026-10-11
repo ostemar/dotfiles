@@ -161,6 +161,8 @@ apt spotify-client
 #   dev glow   -> upstream .deb (stays dpkg-managed)
 #   dev rustdesk-> upstream .deb (stays dpkg-managed, skipped on WSL);
 #                  x86_64 gets the Wayland unattended-access preview build
+#   dev godot  -> latest stable editor from the Godot Foundation's own
+#                GitHub release (/opt/godot), plus launcher, icon and MIME
 # -----------------------------
 # wasm32 is here rather than left to each project because it is a property of
 # the machine: without it `trunk build` stops with a rustup hint, and every
@@ -196,6 +198,16 @@ dev rustdesk
 # Also on Windows as 'winget Wilfred.difftastic'. Taken from the upstream
 # release rather than the community snap, which trails a version behind.
 dev difftastic
+# Godot from godotengine/godot's own release, not the 'godot-4' snap: that one
+# is a third-party repack (ken-vandine's, not the Godot Foundation's) and it
+# trails upstream by months -- it was still on 4.4 when 4.7.2 was current. The
+# release ships a bare binary, so the installer also lays down the launcher,
+# icon and project.godot MIME association that the snap used to provide, and
+# removes the snap if it finds one, carrying ~/snap/godot-4/current's editor
+# settings and project list over to ~/.config/godot and ~/.local/share/godot
+# first. Export templates are NOT installed here: they are a ~1GB download per
+# version and the editor fetches them itself from Manage Export Templates.
+dev godot
 # Chrome is NOT a 'repo' entry: its package rewrites its own .sources file from
 # /etc/cron.daily/google-chrome, so declaring it here too would duplicate it.
 dev chrome
@@ -251,6 +263,7 @@ font JetBrainsMono
 # by hand now, and Obsidian and Ghostty are gone outright (WezTerm covers the
 # terminal, see 'dev wezterm').
 snap powershell --classic
+# 'snap godot-4' is deliberately absent -- see the 'dev godot' entry above.
 # snap slack
 # snap postman
 # snap docker   # alternative to apt install docker.io
