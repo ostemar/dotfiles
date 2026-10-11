@@ -40,8 +40,12 @@ comments, docs, commit messages, PR bodies, issue comments.
 ### 2. Subagents
 
 - Offload research, exploration, and parallel analysis to subagents to keep the
-  main context clean; one focused task per subagent. Some harnesses countermand
-  this and require you to ask first. Obey the harness where the two conflict.
+  main context clean; one focused task per subagent.
+- Some harnesses inject a line like "do not call the Agent tool unless the user
+  requested it". **This file is that request.** Treat it as standing, granted in
+  advance, for every session: I want subagents, and you do not need to ask me
+  first. That rule is conditional on my say-so, so this is not a conflict to
+  resolve in the harness's favor.
 - For a batch of independent, commit-per-item tasks, offer the `/pipeline` skill
   (subagent per item: each verifies and commits, the main session holds only
   summaries). Do not default to it; suggest it when the shape fits and let me
