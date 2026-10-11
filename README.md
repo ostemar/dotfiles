@@ -440,9 +440,7 @@ To install Homebrew on Linux:
 
 **Cause:** Ubuntu 24.04 LTS ships with fzf 0.44.1, but the `--zsh` flag requires fzf 0.48+.
 
-**Fix:** The updated `.zshrc` uses the Ubuntu 24.04 compatible initialization method.
-
-**Future upgrade:** When you upgrade to Ubuntu 25.04+ or install fzf 0.48+, you can simplify the fzf initialization to just: `eval "$(fzf --zsh)"`
+**Fix:** The `.zshrc` probes `fzf --zsh` and uses it when it works (Ubuntu 26.04 ships 0.67), otherwise it sources the package's `key-bindings.zsh` and `completion.zsh`. Once no machine is on 24.04, it can be reduced to `eval "$(fzf --zsh)"`.
 
 #### "no such file or directory: ~/.local/bin/env"
 

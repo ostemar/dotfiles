@@ -9,7 +9,7 @@ fi
 # SYSTEM COMPATIBILITY NOTES
 # ============================================================================
 # This .zshrc works across:
-#   - Native Linux (Ubuntu 24.04 LTS tested)
+#   - Native Linux (Ubuntu 24.04 and 26.04 LTS tested)
 #   - WSL (Windows Subsystem for Linux)
 #
 # Optional dependencies (gracefully skipped if not installed):
@@ -122,13 +122,15 @@ zstyle ':fzf-tab:complete:cd:*' fzf-preview 'ls --color $realpath'
 
 # Shell integrations
 # fzf - Fuzzy finder integration
-# Note: fzf 0.48+ supports --zsh flag. Ubuntu 24.04 LTS has 0.44.1, so we use the legacy method.
-# When upgrading to Ubuntu 25.04+ or fzf 0.48+, replace these lines with: eval "$(fzf --zsh)"
+# fzf 0.48+ has the --zsh flag (Ubuntu 26.04 ships 0.67); Ubuntu 24.04 has 0.44.1
+# and falls back to the files the package installs.
 if command -v fzf &> /dev/null; then
-  if [[ -f /usr/share/doc/fzf/examples/key-bindings.zsh ]]; then
+  if fzf --zsh &> /dev/null; then
+    eval "$(fzf --zsh)"
+  elif [[ -f /usr/share/doc/fzf/examples/key-bindings.zsh ]]; then
     source /usr/share/doc/fzf/examples/key-bindings.zsh
   fi
-  if [[ -f /usr/share/doc/fzf/examples/completion.zsh ]]; then
+  if ! fzf --zsh &> /dev/null && [[ -f /usr/share/doc/fzf/examples/completion.zsh ]]; then
     source /usr/share/doc/fzf/examples/completion.zsh
   fi
 fi

@@ -7,10 +7,11 @@
 #   ppa  <owner/name>
 # -----------------------------
 repo 1password url=https://downloads.1password.com/linux/debian/amd64 suite=stable comps=main key=https://downloads.1password.com/linux/keys/1password.asc arch=amd64
-# gh ships a much newer CLI than the Ubuntu archive (2.45.0 on noble).
+# gh ships a much newer CLI than the Ubuntu archive (2.45.0 on noble; the 26.04 archive has caught up to 2.102).
 repo github-cli url=https://cli.github.com/packages suite=stable comps=main key=https://cli.github.com/packages/githubcli-archive-keyring.gpg arch=amd64
-# .NET SDK newer than the archive provides.
-ppa dotnet/backports
+# .NET is off for now (not needed). Its PPA tracks the Ubuntu release, so if it
+# comes back, prefer the archive's dotnet-sdk-10.0 before re-adding a PPA.
+# ppa dotnet/backports
 # Brave, from Brave's own repo rather than Flathub or snap: 1Password will not
 # connect to a sandboxed browser, and losing that costs unlock-with-system-auth
 # and desktop-backed autofill. The repo serves arm64 too, but arch is pinned to
@@ -71,7 +72,7 @@ apt eza
 apt gh
 # tree-sitter-cli deliberately NOT from apt: Mason installs its own copy and
 # prepends ~/.local/share/nvim/mason/bin to nvim's PATH, so the apt binary is
-# never the one nvim uses -- and noble ships 0.20.8, below the 0.26.1 minimum
+# never the one nvim uses -- and noble ships 0.20.8 and 26.04 ships 0.25.9, both below the 0.26.1 minimum
 # nvim-treesitter (main branch) requires. It also drags in ~1.7GB of deps
 # (emscripten, llvm-15, clang-15, nodejs). Managed via nvim/lua/plugins/mason.lua.
 apt ffmpeg
@@ -123,7 +124,7 @@ apt android-sdk-platform-tools-common
 apt 1password
 apt 1password-cli
 apt brave-browser
-apt dotnet-sdk-9.0
+# apt dotnet-sdk-10.0
 # Migrating an existing machine off the snap is NOT handled here: the snap keeps
 # its profile in ~/snap/firefox/common/.mozilla/firefox while the deb reads
 # ~/.mozilla/firefox. Copy it across with Firefox closed, then repoint the
