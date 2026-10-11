@@ -134,6 +134,8 @@ apt brave-browser
 apt firefox
 apt code
 apt spotify-client
+# GUI for installing and toggling GNOME Shell extensions (GNOME desktops only).
+apt gnome-shell-extension-manager
 
 # -- Things to try out ------
 # apt stow
