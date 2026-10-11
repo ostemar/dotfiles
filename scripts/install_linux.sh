@@ -680,8 +680,15 @@ install_difftastic() {
         info "dev: installing difftastic $want"
     fi
 
-    tarball="difft-${dt_arch}-unknown-linux-gnu.tar.gz"
+    # 0.71.0 put the version into the asset name (difft-0.71.0-<arch>-...);
+    # 0.70.0 and earlier did not. Take the versioned name, and fall back to the
+    # old one if a release ever goes back.
+    tarball="difft-${want}-${dt_arch}-unknown-linux-gnu.tar.gz"
     url="https://github.com/Wilfred/difftastic/releases/download/${want}/${tarball}"
+    if ! curl -fsSLI "$url" >/dev/null 2>&1; then
+        tarball="difft-${dt_arch}-unknown-linux-gnu.tar.gz"
+        url="https://github.com/Wilfred/difftastic/releases/download/${want}/${tarball}"
+    fi
     run "curl -fsSL '$url' -o '/tmp/${tarball}'"
     run "sudo tar -C /usr/local/bin -xzf '/tmp/${tarball}' difft"
     run "rm -f '/tmp/${tarball}'"
