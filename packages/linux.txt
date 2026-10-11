@@ -7,7 +7,7 @@
 #   ppa  <owner/name>
 # -----------------------------
 repo 1password url=https://downloads.1password.com/linux/debian/amd64 suite=stable comps=main key=https://downloads.1password.com/linux/keys/1password.asc arch=amd64
-# gh ships a much newer CLI than the Ubuntu archive (2.45.0 on noble; the 26.04 archive has caught up to 2.102).
+# gh ships a much newer CLI than the Ubuntu archive (2.45.0 on noble, 2.46.0 on 26.04, against 2.102 upstream).
 repo github-cli url=https://cli.github.com/packages suite=stable comps=main key=https://cli.github.com/packages/githubcli-archive-keyring.gpg arch=amd64
 # .NET is off for now (not needed). Its PPA tracks the Ubuntu release, so if it
 # comes back, prefer the archive's dotnet-sdk-10.0 before re-adding a PPA.
