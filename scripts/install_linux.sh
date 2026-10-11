@@ -947,6 +947,16 @@ install_hypergnome() {
         info "dev: freeing Super+P from GNOME's display-mode switch"
         run "gsettings set org.gnome.mutter.keybindings switch-monitor \"['XF86Display']\""
     fi
+
+    # Super+F toggles fullscreen, Hyprland's fullscreen key. GNOME ships the
+    # action unbound. Fullscreen is used instead of Alt+F10 (maximize) because
+    # HyperGnome re-tiles a window that maximizes itself, so the maximize
+    # snaps straight back; fullscreen is not undone that way. Only written
+    # while the action is unbound, so a key chosen by hand is kept.
+    if [ "$(gsettings get org.gnome.desktop.wm.keybindings toggle-fullscreen 2>/dev/null)" = "@as []" ]; then
+        info "dev: binding Super+F to toggle fullscreen"
+        run "gsettings set org.gnome.desktop.wm.keybindings toggle-fullscreen \"['<Super>f']\""
+    fi
 }
 
 install_rustdesk() {
