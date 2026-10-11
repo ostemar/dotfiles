@@ -807,6 +807,74 @@ install_godot() {
     # not handled here -- an upgrade would otherwise re-pull them every time.
 }
 
+install_hypergnome() {
+    local ref="2e95a2696b7f52187aa6486391008d3afe44107e"
+    local uuid="hypergnome@hypergnome.dev"
+    local ext_dir="$HOME/.local/share/gnome-shell/extensions/$uuid"
+    local src="$HOME/.local/src/hypergnome"
+    local current enabled
+
+    # A GNOME Shell extension: needs a GNOME desktop, and has nothing to
+    # draw on under WSL.
+    if [ $WSL -eq 1 ] || ! command -v gnome-extensions >/dev/null 2>&1; then
+        warn "dev: skipping hypergnome (no GNOME Shell here)"
+        return
+    fi
+
+    # Why this is not 'install it from Extension Manager':
+    #  - HyperGnome is not published on extensions.gnome.org. Its version 3
+    #    was rejected there on 2026-09-01 (the reviewer's reason was the EGO
+    #    policy on AI-generated code, not a bug), so there is no store build.
+    #  - Upstream (Stasieniec/hypergnome) declares GNOME Shell 46-49, and
+    #    GNOME refuses to load an extension that does not list its own major
+    #    version. This machine is on 50. The unmerged upstream PR #13 adds
+    #    "50" to metadata.json plus an override for GNOME's native Super+N
+    #    workspace keys; it lives on eof0's fork, so that is what is cloned.
+    #  - The pin is a full commit SHA, never a branch: this is JavaScript that
+    #    runs inside the compositor, so only code that has been read gets
+    #    installed, and a force-push on the fork cannot change it under us.
+    #    It is upstream main at 328010e plus the PR's two commits. To move to a
+    #    newer one: read the diff first, then change the SHA.
+    #  - When #13 (or an equivalent) is merged upstream, point the clone at
+    #    Stasieniec/hypergnome and delete this explanation.
+    if [ -d "$src/.git" ]; then
+        current="$(git -C "$src" rev-parse HEAD 2>/dev/null || true)"
+    else
+        current=""
+    fi
+    if [ "$current" = "$ref" ] && [ -L "$ext_dir" ]; then
+        ok "dev: hypergnome already installed (${ref:0:7})"
+    else
+        info "dev: installing hypergnome (${ref:0:7})"
+        if [ ! -d "$src/.git" ]; then
+            run "mkdir -p '$(dirname "$src")'"
+            run "git clone -q https://github.com/eof0/hypergnome.git '$src'"
+        fi
+        run "git -C '$src' fetch -q origin"
+        run "git -C '$src' checkout -q '$ref'"
+        # 'make install' compiles the schema and symlinks the checkout into
+        # ~/.local/share/gnome-shell/extensions (so the checkout must stay).
+        run "make -C '$src' install >/dev/null"
+    fi
+
+    # Enable it in the saved list, which the shell reads at login. GNOME 50 is
+    # Wayland-only, and a running Wayland shell cannot discover a freshly
+    # installed extension, so 'gnome-extensions enable' would fail until the
+    # next login; writing the setting works straight away.
+    enabled="$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null || true)"
+    case "$enabled" in
+    *"$uuid"*) ok "dev: hypergnome already enabled" ;;
+    "") warn "dev: could not read enabled-extensions; enable hypergnome in Extension Manager" ;;
+    *)
+        # "@as []" (empty, typed) and "['a', 'b']" both need to become a list
+        # ending in the new entry.
+        run "gsettings set org.gnome.shell enabled-extensions \"\$(gsettings get org.gnome.shell enabled-extensions | sed \"s/^@as //; s/\\]\$/, '$uuid']/; s/^\\[, /[/\")\""
+        warn "dev: hypergnome enabled; log out and back in to load it"
+        warn "dev: it clashes with tiling-assistant's keys; see packages/linux.txt"
+        ;;
+    esac
+}
+
 install_rustdesk() {
     local arch rd_arch want current deb url
 
@@ -1422,6 +1490,7 @@ if [ "${#DEV_LINES[@]}" -gt 0 ]; then
         glow) install_glow ;;
         rustdesk) install_rustdesk ;;
         difftastic) install_difftastic ;;
+        hypergnome) install_hypergnome ;;
         godot) install_godot ;;
         chrome) install_chrome ;;
         *) warn "Unknown dev tool '$tool' in line: dev $line" ;;

@@ -136,6 +136,12 @@ apt code
 apt spotify-client
 # GUI for installing and toggling GNOME Shell extensions (GNOME desktops only).
 apt gnome-shell-extension-manager
+# HyperGnome (see 'dev hypergnome') binds Super+arrows and Super+Shift+arrows,
+# the same keys as Ubuntu's built-in tiling-assistant extension. If they fight,
+# turn tiling-assistant off (and back on with 'enable'):
+#   gnome-extensions disable tiling-assistant@ubuntu.com
+# or untick it in Extension Manager. 'ubuntu-dock' is the other one to watch:
+# the dock's Super+N app launcher keys are overridden by HyperGnome as well.
 
 # -- Things to try out ------
 # apt stow
@@ -164,6 +170,8 @@ apt gnome-shell-extension-manager
 #   dev glow   -> upstream .deb (stays dpkg-managed)
 #   dev rustdesk-> upstream .deb (stays dpkg-managed, skipped on WSL);
 #                  x86_64 gets the Wayland unattended-access preview build
+#   dev hypergnome -> Hyprland-style dwindle tiling for GNOME, from a pinned
+#                commit (not on extensions.gnome.org); GNOME desktops only
 #   dev godot  -> latest stable editor from the Godot Foundation's own
 #                GitHub release (/opt/godot), plus launcher, icon and MIME
 # -----------------------------
@@ -201,6 +209,10 @@ dev rustdesk
 # Also on Windows as 'winget Wilfred.difftastic'. Taken from the upstream
 # release rather than the community snap, which trails a version behind.
 dev difftastic
+# Tiling WM behaviour for GNOME, in the Hyprland style. Needs a re-login after
+# the first install; see the long comment on install_hypergnome in
+# scripts/install_linux.sh for why it comes from a pinned fork commit.
+dev hypergnome
 # Godot from godotengine/godot's own release, not the 'godot-4' snap: that one
 # is a third-party repack (ken-vandine's, not the Godot Foundation's) and it
 # trails upstream by months -- it was still on 4.4 when 4.7.2 was current. The
