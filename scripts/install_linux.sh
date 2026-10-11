@@ -937,6 +937,16 @@ install_hypergnome() {
     if gnome_enable_extension "$uuid"; then
         warn "dev: it clashes with tiling-assistant's keys; see packages/linux.txt"
     fi
+
+    # GNOME binds Super+P to "switch display mode" (mirror / join), and that
+    # grab beat HyperGnome's own use of the key (toggle split direction):
+    # one press mirrored the monitors, and the popup then kept the key. The
+    # dedicated display key (XF86Display) stays. HyperGnome overrides most
+    # clashing GNOME keys itself but not this one.
+    if gsettings get org.gnome.mutter.keybindings switch-monitor 2>/dev/null | grep -q "<Super>p"; then
+        info "dev: freeing Super+P from GNOME's display-mode switch"
+        run "gsettings set org.gnome.mutter.keybindings switch-monitor \"['XF86Display']\""
+    fi
 }
 
 install_rustdesk() {
