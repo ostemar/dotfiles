@@ -145,7 +145,7 @@ apt spotify-client
 
 # -----------------------------
 # D E V  (language toolchains via official installers)
-# Installed by install_linux.sh, not apt — keeps versions current and
+# Installed by install_linux.sh, not apt, keeps versions current and
 # self-updating. PATH wiring lives in zsh/.zshrc. Safe to re-run.
 #   dev rust [target...] -> rustup (~/.cargo), plus any extra rustup
 #                targets named on the line (the host target is implicit)
