@@ -807,6 +807,66 @@ install_godot() {
     # not handled here -- an upgrade would otherwise re-pull them every time.
 }
 
+# Add an extension to the saved enabled-extensions list, which the shell reads
+# at login. GNOME 50 is Wayland-only, and a running Wayland shell cannot
+# discover a freshly installed extension, so 'gnome-extensions enable' would
+# fail until the next login; writing the setting works straight away.
+# Returns 0 only when it changed the list, so callers can say "log out".
+gnome_enable_extension() {
+    local uuid="$1" enabled
+    enabled="$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null || true)"
+    case "$enabled" in
+    *"$uuid"*)
+        ok "dev: $uuid already enabled"
+        return 1
+        ;;
+    "")
+        warn "dev: could not read enabled-extensions; enable $uuid in Extension Manager"
+        return 1
+        ;;
+    esac
+    # "@as []" (empty, typed) and "['a', 'b']" both need to become a list
+    # ending in the new entry.
+    run "gsettings set org.gnome.shell enabled-extensions \"\$(gsettings get org.gnome.shell enabled-extensions | sed \"s/^@as //; s/\\]\$/, '$uuid']/; s/^\\[, /[/\")\""
+    warn "dev: $uuid enabled; log out and back in to load it"
+    return 0
+}
+
+install_spotlight() {
+    local uuid="spotlight@nin"
+    local ext_dir="$HOME/.local/share/gnome-shell/extensions/$uuid"
+    local shell_major info want current zip
+
+    if [ $WSL -eq 1 ] || ! command -v gnome-extensions >/dev/null 2>&1; then
+        warn "dev: skipping spotlight (no GNOME Shell here)"
+        return
+    fi
+
+    # An ordinary extensions.gnome.org install, so the store's review is what
+    # vouches for it, unlike hypergnome. Asking the store for the build that
+    # matches this shell (rather than the newest upload) is what keeps it from
+    # handing back one that GNOME would refuse to load. The default shortcut is
+    # Ctrl+Space; change it in the extension's preferences.
+    shell_major="$(gnome-shell --version 2>/dev/null | awk '{print $3}' | cut -d. -f1)"
+    info="$(curl -fsSL "https://extensions.gnome.org/extension-info/?uuid=${uuid}&shell_version=${shell_major}" 2>/dev/null || true)"
+    want="$(printf '%s' "$info" | jq -r '.version // empty' 2>/dev/null || true)"
+    if [ -z "$want" ]; then
+        warn "dev: no spotlight build for GNOME Shell ${shell_major:-?} (or offline); skipping"
+        return
+    fi
+    current="$(jq -r '.version // empty' "$ext_dir/metadata.json" 2>/dev/null || true)"
+    if [ "$current" = "$want" ]; then
+        ok "dev: spotlight already installed (v$current)"
+    else
+        info "dev: installing spotlight v$want"
+        zip="/tmp/${uuid}.shell-extension.zip"
+        run "curl -fsSL 'https://extensions.gnome.org$(printf '%s' "$info" | jq -r .download_url)' -o '$zip'"
+        run "gnome-extensions install --force '$zip'"
+        run "rm -f '$zip'"
+    fi
+    gnome_enable_extension "$uuid" || true
+}
+
 install_hypergnome() {
     local ref="2e95a2696b7f52187aa6486391008d3afe44107e"
     local uuid="hypergnome@hypergnome.dev"
@@ -857,22 +917,9 @@ install_hypergnome() {
         run "make -C '$src' install >/dev/null"
     fi
 
-    # Enable it in the saved list, which the shell reads at login. GNOME 50 is
-    # Wayland-only, and a running Wayland shell cannot discover a freshly
-    # installed extension, so 'gnome-extensions enable' would fail until the
-    # next login; writing the setting works straight away.
-    enabled="$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null || true)"
-    case "$enabled" in
-    *"$uuid"*) ok "dev: hypergnome already enabled" ;;
-    "") warn "dev: could not read enabled-extensions; enable hypergnome in Extension Manager" ;;
-    *)
-        # "@as []" (empty, typed) and "['a', 'b']" both need to become a list
-        # ending in the new entry.
-        run "gsettings set org.gnome.shell enabled-extensions \"\$(gsettings get org.gnome.shell enabled-extensions | sed \"s/^@as //; s/\\]\$/, '$uuid']/; s/^\\[, /[/\")\""
-        warn "dev: hypergnome enabled; log out and back in to load it"
+    if gnome_enable_extension "$uuid"; then
         warn "dev: it clashes with tiling-assistant's keys; see packages/linux.txt"
-        ;;
-    esac
+    fi
 }
 
 install_rustdesk() {
@@ -1491,6 +1538,7 @@ if [ "${#DEV_LINES[@]}" -gt 0 ]; then
         rustdesk) install_rustdesk ;;
         difftastic) install_difftastic ;;
         hypergnome) install_hypergnome ;;
+        spotlight) install_spotlight ;;
         godot) install_godot ;;
         chrome) install_chrome ;;
         *) warn "Unknown dev tool '$tool' in line: dev $line" ;;

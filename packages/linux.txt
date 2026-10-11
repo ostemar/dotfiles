@@ -172,6 +172,8 @@ apt gnome-shell-extension-manager
 #                  x86_64 gets the Wayland unattended-access preview build
 #   dev hypergnome -> Hyprland-style dwindle tiling for GNOME, from a pinned
 #                commit (not on extensions.gnome.org); GNOME desktops only
+#   dev spotlight -> centred launcher box for GNOME (Ctrl+Space), from
+#                extensions.gnome.org; GNOME desktops only
 #   dev godot  -> latest stable editor from the Godot Foundation's own
 #                GitHub release (/opt/godot), plus launcher, icon and MIME
 # -----------------------------
@@ -213,6 +215,10 @@ dev difftastic
 # the first install; see the long comment on install_hypergnome in
 # scripts/install_linux.sh for why it comes from a pinned fork commit.
 dev hypergnome
+# A small centred launcher in place of the fullscreen Super overview, in the
+# spirit of Omarchy's Walker (which needs layer-shell, so cannot run on GNOME).
+# Ctrl+Space by default; avoid Super+N, HyperGnome owns those.
+dev spotlight
 # Godot from godotengine/godot's own release, not the 'godot-4' snap: that one
 # is a third-party repack (ken-vandine's, not the Godot Foundation's) and it
 # trails upstream by months -- it was still on 4.4 when 4.7.2 was current. The
