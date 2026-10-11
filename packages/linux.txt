@@ -136,12 +136,9 @@ apt code
 apt spotify-client
 # GUI for installing and toggling GNOME Shell extensions (GNOME desktops only).
 apt gnome-shell-extension-manager
-# HyperGnome (see 'dev hypergnome') binds Super+arrows and Super+Shift+arrows,
-# the same keys as Ubuntu's built-in tiling-assistant extension. If they fight,
-# turn tiling-assistant off (and back on with 'enable'):
-#   gnome-extensions disable tiling-assistant@ubuntu.com
-# or untick it in Extension Manager. 'ubuntu-dock' is the other one to watch:
-# the dock's Super+N app launcher keys are overridden by HyperGnome as well.
+# HyperGnome (see 'dev hypergnome') takes over keys that Ubuntu's tiling-assistant,
+# the dock and GNOME's move-to-monitor also use. The installer turns those off;
+# the reasons are on install_hypergnome in scripts/install_linux.sh.
 
 # -- Things to try out ------
 # apt stow

@@ -934,9 +934,34 @@ install_hypergnome() {
         run "make -C '$src' install >/dev/null"
     fi
 
-    if gnome_enable_extension "$uuid"; then
-        warn "dev: it clashes with tiling-assistant's keys; see packages/linux.txt"
+    gnome_enable_extension "$uuid" || true
+
+    # HyperGnome owns the Super+arrow, Super+N and Super+Shift keys, and three
+    # things on a stock Ubuntu desktop grab the same ones. Each is a silent
+    # double action rather than an error, which is why they are written down.
+    #  - tiling-assistant binds Super+arrows (half-tile, maximize, restore) and
+    #    does what HyperGnome does, so it is turned off. 'gnome-extensions
+    #    enable tiling-assistant@ubuntu.com' brings it back.
+    #  - The Ubuntu dock launches its own apps on Super+N and Super+Shift+N,
+    #    on top of HyperGnome's workspace switch. Its hotkeys are what go off.
+    #    HyperGnome clears the Shell's own app keys but not the dock's.
+    #  - GNOME's move-to-monitor-* sit on the same Super+Shift+Arrow as
+    #    HyperGnome's tile-move-*, which already moves across monitors when a
+    #    window has no neighbour left. Cleared, the way HyperGnome clears
+    #    switch-to-application-N, so the key reaches one handler.
+    if gnome-extensions list --enabled 2>/dev/null | grep -qx "tiling-assistant@ubuntu.com"; then
+        info "dev: turning off tiling-assistant (HyperGnome replaces it)"
+        run "gnome-extensions disable tiling-assistant@ubuntu.com"
     fi
+    if [ "$(gsettings get org.gnome.shell.extensions.dash-to-dock hot-keys 2>/dev/null)" = "true" ]; then
+        info "dev: turning off the dock's Super+N app hotkeys"
+        run "gsettings set org.gnome.shell.extensions.dash-to-dock hot-keys false"
+    fi
+    for d in left right up down; do
+        if [ "$(gsettings get org.gnome.desktop.wm.keybindings move-to-monitor-$d 2>/dev/null)" != "@as []" ]; then
+            run "gsettings set org.gnome.desktop.wm.keybindings move-to-monitor-$d '@as []'"
+        fi
+    done
 
     # GNOME binds Super+P to "switch display mode" (mirror / join), and that
     # grab beat HyperGnome's own use of the key (toggle split direction):
