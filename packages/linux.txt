@@ -217,7 +217,9 @@ dev difftastic
 dev hypergnome
 # A small centred launcher in place of the fullscreen Super overview, in the
 # spirit of Omarchy's Walker (which needs layer-shell, so cannot run on GNOME).
-# Ctrl+Space by default; avoid Super+N, HyperGnome owns those.
+# Moved to Super+Space by the installer when there is a single keyboard layout
+# (it frees Ubuntu's input-source switch); otherwise Ctrl+Space. Avoid Super+N,
+# HyperGnome owns those.
 dev spotlight
 # Godot from godotengine/godot's own release, not the 'godot-4' snap: that one
 # is a third-party repack (ken-vandine's, not the Godot Foundation's) and it

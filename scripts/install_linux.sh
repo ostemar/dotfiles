@@ -865,6 +865,23 @@ install_spotlight() {
         run "rm -f '$zip'"
     fi
     gnome_enable_extension "$uuid" || true
+
+    # Super+Space, Omarchy's launcher key. Ubuntu already binds it to "next
+    # input source", and two grabs on one accelerator means one silently loses,
+    # so that binding is cleared too. That is only safe with a single keyboard
+    # layout (nothing to switch between), so a machine with several keeps both
+    # and the launcher stays on its default Ctrl+Space. Written only while the
+    # key is unset, so a shortcut chosen in the extension's preferences wins.
+    if [ -z "$(dconf read /org/gnome/shell/extensions/spotlight/toggle-shortcut 2>/dev/null || true)" ]; then
+        if [ "$(gsettings get org.gnome.desktop.input-sources sources 2>/dev/null | grep -o "('" | wc -l)" -le 1 ]; then
+            info "dev: spotlight on Super+Space (freeing it from input-source switching)"
+            run "gsettings set org.gnome.desktop.wm.keybindings switch-input-source '@as []'"
+            run "gsettings set org.gnome.desktop.wm.keybindings switch-input-source-backward '@as []'"
+            run "dconf write /org/gnome/shell/extensions/spotlight/toggle-shortcut \"['<Super>space']\""
+        else
+            warn "dev: several keyboard layouts, so spotlight stays on Ctrl+Space"
+        fi
+    fi
 }
 
 install_hypergnome() {
