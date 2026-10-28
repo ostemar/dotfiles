@@ -694,6 +694,48 @@ install_difftastic() {
     run "rm -f '/tmp/${tarball}'"
 }
 
+install_butler() {
+    local arch want current zip url
+    # itch.io publishes butler for linux-amd64 only: broth's linux-arm64
+    # channel answers LATEST with an empty body.
+    arch="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
+    if [ "$arch" != "amd64" ]; then
+        warn "dev: itch.io ships no butler for '$arch'; skipping butler"
+        return
+    fi
+
+    # broth is itch.io's own download server; LATEST is a bare version, e.g. 15.32.0.
+    want="$(curl -fsSL https://broth.itch.zone/butler/linux-amd64/LATEST 2>/dev/null || true)"
+    if [ -z "$want" ]; then
+        warn "dev: could not determine latest butler version (offline?); skipping butler"
+        return
+    fi
+
+    if [ -x /opt/butler/butler ]; then
+        # 'vX.Y.Z, built on ...'
+        current="$(/opt/butler/butler --version 2>&1 | grep -oE 'v[0-9.]+' | head -1 | tr -d v)"
+        if [ "$current" = "$want" ]; then
+            ok "dev: butler already installed ($current)"
+            return
+        fi
+        info "dev: updating butler ($current -> $want)"
+    else
+        info "dev: installing butler $want"
+    fi
+
+    # The zip holds butler and the two 7-Zip libraries it loads from its own
+    # directory, so it keeps a directory of its own rather than going loose
+    # into /usr/local/bin.
+    zip="butler-${want}-linux-amd64.zip"
+    url="https://broth.itch.zone/butler/linux-amd64/${want}/archive/default"
+    run "curl -fsSL '$url' -o '/tmp/${zip}'"
+    run "sudo rm -rf /opt/butler"
+    run "sudo unzip -q '/tmp/${zip}' -d /opt/butler"
+    run "sudo chmod +x /opt/butler/butler"
+    run "sudo ln -sf /opt/butler/butler /usr/local/bin/butler"
+    run "rm -f '/tmp/${zip}'"
+}
+
 install_godot() {
     local arch g_arch want want_ver current zip url sums_url want_sha dist_base d
 
@@ -1599,6 +1641,7 @@ if [ "${#DEV_LINES[@]}" -gt 0 ]; then
         glow) install_glow ;;
         rustdesk) install_rustdesk ;;
         difftastic) install_difftastic ;;
+        butler) install_butler ;;
         hypergnome) install_hypergnome ;;
         spotlight) install_spotlight ;;
         godot) install_godot ;;

@@ -165,6 +165,8 @@ apt gnome-shell-extension-manager
 #   dev wezterm-> nightly .deb from GitHub releases (skipped on WSL)
 #   dev lazygit-> upstream release tarball (/usr/local/bin)
 #   dev glow   -> upstream .deb (stays dpkg-managed)
+#   dev butler -> itch.io's upload CLI from its own server (/opt/butler,
+#                linked into /usr/local/bin); amd64 only
 #   dev rustdesk-> upstream .deb (stays dpkg-managed, skipped on WSL);
 #                  x86_64 gets the Wayland unattended-access preview build
 #   dev hypergnome -> Hyprland-style dwindle tiling for GNOME, from a pinned
@@ -208,6 +210,9 @@ dev rustdesk
 # Also on Windows as 'winget Wilfred.difftastic'. Taken from the upstream
 # release rather than the community snap, which trails a version behind.
 dev difftastic
+# itch.io's command-line uploader, for pushing web builds to a game page
+# instead of uploading a zip by hand. Not packaged anywhere; itch serves it.
+dev butler
 # Tiling WM behaviour for GNOME, in the Hyprland style. Needs a re-login after
 # the first install; see the long comment on install_hypergnome in
 # scripts/install_linux.sh for why it comes from a pinned fork commit.
