@@ -162,6 +162,8 @@ apt gnome-shell-extension-manager
 #   dev node   -> nvm + Node LTS (~/.nvm)
 #   dev neovim -> latest stable tarball (/opt/nvim, linked into /usr/local/bin)
 #   dev claude -> Claude Code via official install.sh (~/.local/bin)
+#   dev uv     -> uv (Python versions, venvs, tools) via Astral's install.sh
+#                (~/.local/bin); later runs do 'uv self update'
 #   dev wezterm-> nightly .deb from GitHub releases (skipped on WSL)
 #   dev lazygit-> upstream release tarball (/usr/local/bin)
 #   dev glow   -> upstream .deb (stays dpkg-managed)
@@ -193,6 +195,7 @@ dev go
 dev node
 dev neovim
 dev claude
+dev uv
 # WezTerm is not in the Ubuntu archive at all, and its apt repo still serves the
 # Feb 2024 stable tag, so this tracks the daily-rebuilt nightly instead. The
 # Flatpak build is sandboxed and there is no official snap.

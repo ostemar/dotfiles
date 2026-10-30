@@ -574,6 +574,22 @@ install_claude() {
     run "curl -fsSL https://claude.ai/install.sh | bash"
 }
 
+install_uv() {
+    local uv_bin="$HOME/.local/bin/uv"
+    [ -x "$uv_bin" ] || uv_bin="$(command -v uv 2>/dev/null || true)"
+    if [ -n "$uv_bin" ] && [ -x "$uv_bin" ]; then
+        # 'self update' only works on an installer-managed uv; one from snap or
+        # pipx updates through its own manager, so a failure here is not fatal.
+        info "dev: updating uv ($("$uv_bin" --version 2>/dev/null))"
+        run "'$uv_bin' self update || true"
+        return
+    fi
+    info "dev: installing uv via official installer"
+    # No PATH edits: zsh/.zshrc already puts ~/.local/bin on PATH, and the
+    # installer would otherwise append to that dotfiles-managed .zshrc.
+    run "curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh"
+}
+
 install_lazygit() {
     local arch lg_arch want current tarball url
 
@@ -1636,6 +1652,7 @@ if [ "${#DEV_LINES[@]}" -gt 0 ]; then
         node) install_node ;;
         neovim) install_neovim ;;
         claude) install_claude ;;
+        uv) install_uv ;;
         wezterm) install_wezterm ;;
         lazygit) install_lazygit ;;
         glow) install_glow ;;
