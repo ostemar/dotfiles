@@ -76,8 +76,15 @@ counts as verified, but say so in the table.
 baseline, not a regression; report it, never fix it as part of a dependency
 change.
 
-Do the work in a fresh clone in the session's scratchpad, never in the user's
-own checkout of the repo (it may have a feature branch and uncommitted work).
+Where to work: the user keeps every repo in `~/code/<repo>`.
+
+- Work that ends in a commit (a fix, a formatting pass): if `~/code/<repo>`
+  does not exist, clone it there and work in it. If it exists and sits on
+  `main` with a clean tree, pull and work there. If it has other work in
+  progress (another branch, uncommitted changes), leave it untouched and use
+  a clone in the session's scratchpad.
+- Verifying PRs without committing (merge step 2, unattended runs): a clone
+  in the session's scratchpad, so nothing in `~/code` changes.
 
 ## What the PR checks prove
 
