@@ -115,6 +115,10 @@ signal on its PRs at all, and its PRs need the gate run locally.
 - A `vite.config` that loads `vite-plugin-mkcert` makes `vitest` try to
   install a root CA with sudo, so the tests fail before running. Run them with
   a temporary config without that plugin, delete it afterwards, and say so.
+- A PR made redundant by a bigger one (a framework major that pulls the same
+  patched versions) is not always closed at once; Dependabot may wait for its
+  next run. If `main`'s lockfile already has the PR's target version, say so
+  and leave it, rather than merging a no-op.
 - New alerts can appear right after a fix lands: the rescan finds advisories
   published since. Re-list before saying a repo is clear.
 
