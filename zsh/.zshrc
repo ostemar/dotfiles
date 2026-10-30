@@ -136,7 +136,13 @@ if command -v fzf &> /dev/null; then
 fi
 
 # zoxide - Smarter cd command
-eval "$(zoxide init --cmd cd zsh)"
+# Skipped in the shells Claude Code runs commands in (CLAUDECODE set, no terminal):
+# they replay a snapshot of these functions without zsh's chpwd hooks, so zoxide's
+# cd prints its "possible configuration issue" warning on every call there, and an
+# agent's cd's have no place in the frecency database anyway.
+if [[ -z "$CLAUDECODE" || -t 0 ]]; then
+  eval "$(zoxide init --cmd cd zsh)"
+fi
 
 # NVM (Node Version Manager) - if installed
 export NVM_DIR="$HOME/.nvm"
